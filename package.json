@@ -1,0 +1,20 @@
+{
+  "name": "oyinbo",
+  "description": "🍯 OYINBO Yarn Is Not BOring? Remote REPL",
+  "version": "0.0.2",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oyin-bo/oyinbo.git"
+  },
+  "keywords": ["debug", "repl", "rpc"],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/oyin-bo/oyinbo/issues"
+  },
+  "homepage": "https://github.com/oyin-bo/oyinbo#readme"
+}

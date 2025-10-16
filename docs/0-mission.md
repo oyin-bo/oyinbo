@@ -2,7 +2,7 @@
 
 ## Project Mission Statement
 
-**Mission:** To empower **Large Language Models (LLMs)** with precise, **session-based, stateful remote execution and debugging capabilities** across diverse, complex environments—from browser runtimes to compiled application kernels—thereby enabling **autonomous quality assurance, diagnosis, and enhancement of software** for the benefit of humanity.
+**Mission:** To empower **Large Language Models (LLMs)** with precise, **session-based, stateful remote execution and debugging capabilities** across diverse, complex environments — from browser runtimes to compiled application kernels — thereby enabling **autonomous quality assurance, diagnosis, and enhancement of software** for the benefit of humanity.
 
 ---
 
@@ -22,20 +22,20 @@ Current software development and quality assurance processes are hindered by the
 
 ## Project Goals and Implementation Strategy
 
-### **A. Execution Realities: The Multi-Kernel Backbone**
+### **A. Execution Realities: The Multi-Realm Backbone**
 
-**Oyinbo** must support a set of hetorogeneous execution targets, each treated as a distinct, stateful **Kernel**.
+**Oyinbo** must support a set of hetorogeneous execution targets, each treated as a distinct, stateful **realm**.
 
 | Execution Realm (Kernel) | Protocol/Integration | Primary Benefit |
 | :---- | :---- | :---- |
 | **Browser JavaScript** | Direct Injection via serve.js | Core functionality; client-side web testing and diagnostics. |
-| **Python** | **Jupyter Kernel Protocol (ZMQ)** | Access to vast scientific, machine learning, and server-side ecosystems. |
+| **Python** | (language runtime) | Access to vast scientific, machine learning, and server-side ecosystems. |
 | **LISP (Scheme/Clojure)** | **Embedded LISP Interpreter/S-Expression Protocol (LSP)** | Acrobatic execution, symbolic programming, and highly LLM-aligned I/O. |
 | **Low-Level (Rust, C\#, Go)** | **Debug Adapter Protocol (DAP)** | Remote state inspection and evaluation within compiled, running applications. |
 
 ### **B. The REPL Front-End: LLM-Native Transports**
 
-**Oyinbo** will decouple the kernel execution engine from the input/output transport, prioritizing formats most productive for LLMs.
+**Oyinbo** will decouple the realm execution engine from the input/output transport, prioritizing formats most productive for LLMs.
 
 | Transport Mechanism | Primary Format | Key Feature |
 | :---- | :---- | :---- |
@@ -45,7 +45,7 @@ Current software development and quality assurance processes are hindered by the
 
 ### **C. Foundational Principles**
 
-* **Statefulness:** Every kernel maintains its state across commands, crucial for iterative debugging.  
+* **Statefulness:** Every realm maintains its state across commands, crucial for iterative debugging.  
 * **Comprehensive Auditability:** Every command execution includes a **Job ID**, mandatory **Execution Duration**, and **Complete Error Capture** (all unhandled exceptions/rejections).  
 * **Protocol Alignment:** Input and output formats are specifically designed to minimize LLM hallucination and parsing errors (e.g., S-expressions, structured Markdown, validated JSON).
 

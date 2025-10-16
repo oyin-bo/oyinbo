@@ -5,7 +5,7 @@ This document specifies the file-based JavaScript REPL behaviour used by the loc
 ## Architecture summary
 
 - Master registry: `debug.md` at repository root. Very small surface area — lists active realm instances and their current state (idle/executing/completed/failed) with last heartbeat timestamps.
-- Per-instance chat log files: stored under `debug/` directory at repo root. One file per realm instance (for example: `debug/index-7-zen-1201-03-1a2b.md`). These are the authoritative, append-only chat logs for each kernel instance.
+- Per-instance chat log files: stored under `debug/` directory at repo root. One file per realm instance (for example: `debug/index-7-zen-1201-03-1a2b.md`). These are the authoritative, append-only chat logs for each realm instance.
 
 
 Directories (relative to repo root):
@@ -166,22 +166,22 @@ Timeout behaviour:
 - Within a single per-instance file the server treats requests as strictly ordered; multiple concurrent jobs targeting the same instance are permitted but may be ambiguous — the server pairs replies using heuristics described above.
 
 
-## Integrations and kernel adapters
+## Integrations and adapters
 
-- Adapter: An adapter provides the transport and runtime integration between the server and a target execution environment (for example: a browser page, a kernel, or another host). The spec intentionally leaves the transport method open — adapters may use polling, long-polling, WebSockets, platform APIs, or other mechanisms.
+-- Adapter: An adapter provides the transport and runtime integration between the server and a target execution environment (for example: a browser page, a realm instance, or another host). The spec intentionally leaves the transport method open — adapters may use polling, long-polling, WebSockets, platform APIs, or other mechanisms.
 
   Adapters SHOULD provide at minimum:
   - a way to receive jobs (code and metadata) from the server,
   - a way to return results and runtime diagnostics to the server,
   - capture of runtime errors/diagnostics for inclusion in the per-instance log.
 
-- Python adapter (example): A Jupyter Kernel integration can map notebook/kernel cells into the same per-instance chat-log format (language tag `Python`). An implementation should map kernel IDs to realm instances and create matching per-instance files.
-- LISP / DAP adapters: Adapters for other environments should map their inputs and outputs into per-instance files in the same format (the fence language tag should match the kernel/language used by that adapter).
+-- Python (stretch goal): Support for Jupyter and similar notebook environments is a possible future enhancement.
+-- LISP adapters: Adapters for other environments may map their inputs and outputs into per-instance files in the same format (the fence language tag should match the realm/language used by that adapter).
 
 ## Security and safety
 
 - The per-instance files are local to the repository and should not be served publicly. The server should ensure file writes are only performed by the local server process.
-- Do not execute arbitrary administrative commands embedded in the logs. File-based REPL evaluates code only when served to a verified page kernel.
+- Do not execute arbitrary administrative commands embedded in the logs. File-based REPL evaluates code only when served to a verified realm instance.
 
 ## Examples
 

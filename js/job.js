@@ -66,41 +66,24 @@ async function onTimeout(job) {
 
 /** @param {Job} job */
 export function start(job) {
-  // If start() is called multiple times (multiple polls), make this idempotent
-  if (job.startedAt) {
-    console.log(`[job] start called but already started for ${job.page.name}, skipping`);
-    return;
-  }
-
+  if (job.startedAt) return; // idempotent
+  
   job.startedAt = Date.now();
-  // notify file that execution has started
+  
   try {
-    console.log(`[job] starting job for ${job.page.name}, writing executing placeholder`);
     writer.writeExecuting(job);
-    console.log(`[job] executing placeholder written successfully`);
   } catch (err) {
     console.warn('[job] writeExecuting failed', err);
   }
-
-  // update placeholder every 5s
-  console.log(`[job] setting up placeholder interval for ${job.page.name}, will fire every 5000ms`);
+  
+  // Update placeholder every 5s
   job._placeholderInterval = setInterval(() => {
-    const now = Date.now();
-    const elapsed = Math.max(0, Math.floor((now - (job.startedAt || now)) / 1000));
-    const secs = `${elapsed}s`;
+    const secs = Math.floor((Date.now() - (job.startedAt || Date.now())) / 1000);
     try {
-      const file = job.page.file;
-      let text = fs.readFileSync(file, 'utf8');
-      if (/executing \([^)]+\)/.test(text)) {
-        console.log(`[job-interval] updating placeholder for ${job.page.name}: executing (${secs})`);
-        text = text.replace(/executing \([^)]+\)/, `executing (${secs})`);
-        fs.writeFileSync(file, text, 'utf8');
-      } else {
-        console.log(`[job-interval] no executing placeholder found in ${job.page.name}`);
-      }
-    } catch (err) {
-      console.warn(`[job-interval] error updating placeholder: ${err instanceof Error ? err.message : String(err)}`);
-    }
+      const text = fs.readFileSync(job.page.file, 'utf8')
+        .replace(/executing \(\d+s\)/, `executing (${secs}s)`);
+      fs.writeFileSync(job.page.file, text, 'utf8');
+    } catch {}
   }, 5000);
 }
 

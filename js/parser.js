@@ -1,8 +1,5 @@
 // @ts-check
 
-const AGENT_RE = /^>\s*\*\*(\S+)\*\*\s+to\s+(\S+)\s+at\s+(\d{2}:\d{2}:\d{2})\s*$/;
-const FOOTER_RE = /^>\s+Write code in a fenced JS block/;
-
 /**
  * @typedef {{
  *   agent: string,
@@ -16,91 +13,35 @@ const FOOTER_RE = /^>\s+Write code in a fenced JS block/;
 /** @param {string} text @param {string} pageName @returns {Request | null} */
 export function parseRequest(text, pageName) {
   const lines = text.split('\n');
-  let footerIdx = -1;
   
   // Find footer from bottom
+  let footerIdx = -1;
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (FOOTER_RE.test(lines[i])) {
+    if (lines[i].startsWith('> Write code in a fenced JS block')) {
       footerIdx = i;
       break;
     }
   }
   
-  if (footerIdx < 0) {
-    console.log(`[parseRequest] ${pageName}: no footer found in ${lines.length} lines`);
-    return null;
-  }
+  if (footerIdx < 0) return null;
   
-  // Look for content BELOW the footer (agent appends below)
+  // Look for content BELOW footer
   const chunk = lines.slice(footerIdx + 1).join('\n');
-  if (!chunk.trim()) {
-    console.log(`[parseRequest] ${pageName}: no content below footer`);
-    return null;
-  }
+  if (!chunk.trim()) return null;
   
-  // Check if there's an agent header
-  let agent = 'agent';
-  let target = pageName;
-  let time = '';
-  let codeStartIdx = 0;
+  // Parse optional agent header
+  const agentRe = /^>\s*\*\*(\S+)\*\*\s+to\s+(\S+)\s+at\s+(\d{2}:\d{2}:\d{2})\s*$/;
+  const headerMatch = agentRe.exec(lines[footerIdx + 1]);
   
-  const headerMatch = AGENT_RE.exec(lines[footerIdx + 1]);
-  if (headerMatch) {
-    agent = headerMatch[1];
-    target = headerMatch[2];
-    time = headerMatch[3];
-    codeStartIdx = 1; // Skip the header line
-  }
+  const agent = headerMatch?.[1] || 'agent';
+  const target = headerMatch?.[2] || pageName;
+  const time = headerMatch?.[3] || '';
   
-  // Extract code from fenced block(s) below the footer (and optional header)
-  const codeChunk = lines.slice(footerIdx + 1 + codeStartIdx).join('\n');
-  const fence = /```(?:JS|js|javascript)\s*\n([\s\S]*?)```/;
-  const fm = fence.exec(codeChunk);
+  // Extract code from fenced block
+  const codeChunk = lines.slice(footerIdx + 1 + (headerMatch ? 1 : 0)).join('\n');
+  const codeMatch = /```(?:JS|js|javascript)\s*\n([\s\S]*?)```/.exec(codeChunk);
   
-  if (!fm || !fm[1].trim()) {
-    console.log(`[parseRequest] ${pageName}: no code block found below footer`);
-    return null;
-  }
+  if (!codeMatch?.[1]?.trim()) return null;
   
-  console.log(`[parseRequest] ${pageName}: found request with agent=${agent}, code length=${fm[1].length}`);
-  return {
-    agent,
-    target,
-    time,
-    code: fm[1],
-    hasFooter: true
-  };
-}
-
-/** @param {string} text @returns {boolean} */
-export function hasFooter(text) {
-  const lines = text.split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (FOOTER_RE.test(lines[i])) return true;
-    if (lines[i].trim() && !lines[i].startsWith('>')) break;
-  }
-  return false;
-}
-
-/** @param {string} text */
-export function removeFooter(text) {
-  const lines = text.split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (FOOTER_RE.test(lines[i])) {
-      return lines.slice(0, i).join('\n') + '\n';
-    }
-  }
-  return text;
-}
-
-/** @param {string} text */
-export function removeFooterAndBelow(text) {
-  const lines = text.split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (FOOTER_RE.test(lines[i])) {
-      // Remove footer and everything below it
-      return lines.slice(0, i).join('\n') + '\n';
-    }
-  }
-  return text;
+  return { agent, target, time, code: codeMatch[1], hasFooter: true };
 }

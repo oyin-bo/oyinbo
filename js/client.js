@@ -43,32 +43,28 @@ export const clientScript = `
       }
       
       errors.length = 0;
+      
+      // Execute code and prepare result
+      const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
       let payload;
       
       try {
-  // Use AsyncFunction to execute arbitrary async code and allow top-level await
-  // Try treating the submission as an expression first so one-line expressions
-  // like new Promise(...) return their value. If that fails (e.g. syntax
-  // error for statements), fall back to statement mode.
-        const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+        // Try as expression first, fallback to statement
         let result;
         try {
-          const fnExpr = new AsyncFunction('return (' + script + ')');
-          result = await fnExpr();
-        } catch (exprErr) {
-          // Fallback to statement body (may return undefined unless the script uses return)
-          const fnStmt = new AsyncFunction(script);
-          result = await fnStmt();
+          result = await new AsyncFunction('return (' + script + ')')();
+        } catch {
+          result = await new AsyncFunction(script)();
         }
-        payload = JSON.stringify({ ok: true, value: result, errors, jobId });
+        payload = { ok: true, value: result, errors, jobId };
       } catch (err) {
-        payload = JSON.stringify({ ok: false, error: err?.stack || String(err), errors, jobId });
+        payload = { ok: false, error: err?.stack || String(err), errors, jobId };
       }
       
       await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: payload
+        body: JSON.stringify(payload)
       });
       
       await sleep(100);

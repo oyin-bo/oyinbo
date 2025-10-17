@@ -1,167 +1,144 @@
 // @ts-check
 import { readFileSync, writeFileSync } from 'node:fs';
 import { clockFmt, durationFmt } from './utils.js';
-import { removeFooterAndBelow } from './parser.js';
 
-const FOOTER = '> Write code in a fenced JS block below to execute against this page.\n';
+// Local helpers - everything inline, no external constants
+// Make the footer very visible: wide divider, canonical footer line retained
+const FOOTER = (
+  '----------------------------------------------------------------------\n' +
+  '> Write code in a fenced JS block below to execute against this page.\n' +
+  '\n'
+);
+
+/** @param {string} agent @param {string} target @param {number} ts */
+function agentHeader(agent, target, ts) {
+  return `> **${agent}** to ${target} at ${clockFmt(ts)}`;
+}
+
+/** @param {string} page @param {string} agent @param {number} ts @param {number} dur @param {boolean} err */
+function replyHeader(page, agent, ts, dur, err) {
+  return `> **${page}** to ${agent} at ${clockFmt(ts)}${err ? ' (**ERROR**)' : ''} (${durationFmt(dur)})`;
+}
+
+/** @param {string[]} lines */
+function findFooter(lines) {
+  for (let i - lines.length - 1; i >= 0; i--) {
+    if (lines[i].startsWith('> Write code in a fenced JS block')) return i;
+  }
+  return -1;
+}
+
+/** @param {string[]} lines @param {string} page @param {string} agent */
+function findExecutingBlock(lines, page, agent) {
+  const footerIdx = findFooter(lines);
+  if (footerIdx < 0) return null;
+  
+  for (let i = footerIdx - 1; i >= 0; i--) {
+    if (lines[i].startsWith(`> **${page}** to ${agent} at `)) {
+      const next = lines[i + 1] || '';
+      if (/^executing \(/.test(next.trim())) {
+        return { headerIdx: i, placeholderIdx: i + 1 };
+      }
+    }
+  }
+  return null;
+}
+
+/** @param {{ ok: boolean, value?: any, error?: any, errors?: string[] }} result */
+function buildBlocks(result) {
+  const blocks = [];
+  
+  if (result.ok) {
+    const val = result.value;
+    const isObj = val && typeof val === 'object';
+    blocks.push('```JSON\n' + (isObj ? JSON.stringify(val, null, 2) : String(val)) + '\n```');
+  } else {
+    blocks.push('```Error\n' + String(result.error) + '\n```');
+  }
+  
+  if (result.errors?.length) {
+    const errs = result.errors.length > 10
+      ? [...result.errors.slice(0, 2), `... (${result.errors.length - 10} more background events omitted) ...`, ...result.errors.slice(-8)]
+      : result.errors;
+    
+    for (const err of errs) {
+      blocks.push(err.includes('...') ? '\n' + err + '\n' : '```Error\n' + err + '\n```');
+    }
+  }
+  
+  return blocks;
+}
 
 /**
  * @param {import('./job.js').Job} job
  * @param {{ ok: boolean, value?: any, error?: any, errors?: string[] }} result
  */
 export function writeReply(job, result) {
-  const file = job.page.file;
-  let text = readFileSync(file, 'utf8');
-  // Deterministically find the executing announcement header ("**page** to agent at ...")
-  // and the executing placeholder line after it. Replace that whole section up to
-  // the footer with the final reply. This is more robust than a single-line regex
-  // and avoids reinserting the agent request block.
-  const lines = text.split('\n');
-  let footerIdx = -1;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].startsWith('> Write code in a fenced JS block')) {
-      footerIdx = i;
-      break;
-    }
-  }
-
-  let replaced = false;
-  if (footerIdx >= 0) {
-    // Search upwards for the executing header line just above the placeholder
-    for (let i = footerIdx - 1; i >= 0; i--) {
-      const expectedHeader = `> **${job.page.name}** to ${job.agent} at `;
-      if (lines[i].startsWith(expectedHeader)) {
-        // Check the next non-empty line is the executing placeholder
-        const nextLine = lines[i + 1] || '';
-        if (/^executing \([^)]+\)/.test(nextLine.trim())) {
-          // Build reply text
-          const now = Date.now();
-          const duration = job.startedAt ? now - job.startedAt : 0;
-          const durStr = duration > 0 ? ` (${durationFmt(duration)})` : '';
-          const errStr = result.ok ? '' : '**ERROR** after ';
-          const replyHeader = `> **${job.page.name}** to ${job.agent} at ${clockFmt(now)}${errStr ? ' (' + errStr + durStr + ')' : durStr}`;
-
-          const blocks = [];
-          if (result.ok) {
-            const val = result.value;
-            const isObj = val && typeof val === 'object';
-            blocks.push('```JSON\n' + (isObj ? JSON.stringify(val, null, 2) : String(val)) + '\n```');
-          } else {
-            blocks.push('```Error\n' + String(result.error) + '\n```');
-          }
-
-          if (result.errors && result.errors.length > 0) {
-            const errs = result.errors.length > 10
-              ? [...result.errors.slice(0, 2), `... (${result.errors.length - 10} more background events omitted) ...`, ...result.errors.slice(-8)]
-              : result.errors;
-            for (const err of errs) {
-              if (err.includes('...')) {
-                blocks.push('\n' + err + '\n');
-              } else {
-                blocks.push('```Error\n' + err + '\n```');
-              }
-            }
-          }
-
-          // Replace from the executing header line (i) through the line before footerIdx
-          const head = lines.slice(0, i).join('\n');
-          const body = '\n\n' + replyHeader + '\n' + blocks.join('\n\n') + '\n\n' + FOOTER;
-          text = head + body;
-          replaced = true;
-          console.log(`[writeReply] replaced executing block for ${job.page.name} (lines ${i}-${footerIdx - 1})`);
-          break;
-        }
-      }
-    }
-  }
-
-  if (!replaced) {
-    // No executing placeholder found, write the full response (old behavior)
-    // Remove footer and everything below it (including the agent's appended code)
-    text = removeFooterAndBelow(text);
+  const lines = readFileSync(job.page.file, 'utf8').split('\n');
+  const execBlock = findExecutingBlock(lines, job.page.name, job.agent);
+  const footerIdx = findFooter(lines);
+  
+  const now = Date.now();
+  const duration = job.startedAt ? now - job.startedAt : 0;
+  const reply = replyHeader(job.page.name, job.agent, now, duration, !result.ok);
+  const blocks = buildBlocks(result);
+  
+  let output;
+  if (execBlock) {
+    // Replace executing block with reply
+    output = [
+      ...lines.slice(0, execBlock.headerIdx),
+      '',
+      reply,
+      ...blocks,
+      '',
+      FOOTER
+    ].join('\n');
+  } else {
+    // No executing block, append full request + reply
+    const agent = agentHeader(job.agent, job.page.name, job.requestedAt || now);
+    const code = '```JS\n' + job.code + '\n```';
     
-    // Inject the agent request header if not already present
-    const agentHeader = `> **${job.agent}** to ${job.page.name} at ${job.requestedAt ? clockFmt(job.requestedAt) : clockFmt(Date.now())}`;
-    const codeBlock = '```JS\n' + job.code + '\n```';
-    
-    text += '\n' + agentHeader + '\n' + codeBlock + '\n';
-    
-    const now = Date.now();
-    const duration = job.startedAt ? now - job.startedAt : 0;
-    const durStr = duration > 0 ? ` (${durationFmt(duration)})` : '';
-    const errStr = result.ok ? '' : '**ERROR** after ';
-    
-    const replyHeader = `> **${job.page.name}** to ${job.agent} at ${clockFmt(now)}${errStr ? ' (' + errStr + durStr + ')' : durStr}`;
-    
-    const blocks = [];
-    
-    if (result.ok) {
-      const val = result.value;
-      const isObj = val && typeof val === 'object';
-      blocks.push('```JSON\n' + (isObj ? JSON.stringify(val, null, 2) : String(val)) + '\n```');
-    } else {
-      blocks.push('```Error\n' + String(result.error) + '\n```');
-    }
-    
-    // Add error blocks
-    if (result.errors && result.errors.length > 0) {
-      const errs = result.errors.length > 10
-        ? [...result.errors.slice(0, 2), `... (${result.errors.length - 10} more background events omitted) ...`, ...result.errors.slice(-8)]
-        : result.errors;
-      
-      for (const err of errs) {
-        if (err.includes('...')) {
-          blocks.push('\n' + err + '\n');
-        } else {
-          blocks.push('```Error\n' + err + '\n```');
-        }
-      }
-    }
-    
-    text += '\n' + replyHeader + '\n' + blocks.join('\n\n') + '\n\n' + FOOTER;
+    output = [
+      ...lines.slice(0, footerIdx),
+      '',
+      agent,
+      code,
+      '',
+      reply,
+      ...blocks,
+      '',
+      FOOTER
+    ].join('\n');
   }
   
-  writeFileSync(file, text, 'utf8');
+  writeFileSync(job.page.file, output, 'utf8');
 }
 
 /**
  * Write an executing announcement and placeholder into the per-instance file.
- * This removes the footer and injects the agent header, code block, an executing
- * announcement header, and a short placeholder line. The footer IS re-appended
- * at the end to allow future requests to be parsed.
  * @param {import('./job.js').Job} job
  */
 export function writeExecuting(job) {
-  const file = job.page.file;
-  let text = readFileSync(file, 'utf8');
-  console.log(`[writeExecuting] read file, length=${text.length}`);
-
-  // Remove footer and anything below it
-  const lines = text.split('\n');
-  let footerIdx = -1;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].startsWith('> Write code in a fenced JS block')) {
-      footerIdx = i;
-      break;
-    }
-  }
-
-  if (footerIdx >= 0) {
-    text = lines.slice(0, footerIdx).join('\n') + '\n';
-    console.log(`[writeExecuting] removed footer at line ${footerIdx}`);
-  }
-
-  // Ensure agent header + code block exist (inject if necessary)
-  const agentHeader = `> **${job.agent}** to ${job.page.name} at ${clockFmt(job.requestedAt || Date.now())}`;
-  const codeBlock = '```JS\n' + job.code + '\n```';
-
-  // executing announcement + placeholder
-  const executingHeader = `> **${job.page.name}** to ${job.agent} at ${clockFmt(Date.now())}`;
-  const placeholder = 'executing (0s)';
-
-  text += '\n' + agentHeader + '\n' + codeBlock + '\n\n' + executingHeader + '\n' + placeholder + '\n\n' + FOOTER;
-  console.log(`[writeExecuting] writing to file, length=${text.length}`);
-
-  writeFileSync(file, text, 'utf8');
-  console.log(`[writeExecuting] written successfully`);
+  const lines = readFileSync(job.page.file, 'utf8').split('\n');
+  const footerIdx = findFooter(lines);
+  
+  const now = Date.now();
+  const agent = agentHeader(job.agent, job.page.name, job.requestedAt || now);
+  const code = '```JS\n' + job.code + '\n```';
+  const executing = `> **${job.page.name}** to ${job.agent} at ${clockFmt(now)}`;
+  
+  const output = [
+    ...lines.slice(0, footerIdx),
+    '',
+    agent,
+    code,
+    '',
+    executing,
+    'executing (0s)',
+    '',
+    FOOTER
+  ].join('\n');
+  
+  writeFileSync(job.page.file, output, 'utf8');
 }

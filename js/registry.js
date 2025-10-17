@@ -1,5 +1,5 @@
 // @ts-check
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { sanitizeName, randomId, clockFmt } from './utils.js';
 
@@ -67,9 +67,8 @@ export function updateMaster(root) {
   ];
   
   for (const p of Array.from(pages.values()).sort((a, b) => b.lastSeen - a.lastSeen)) {
-    // Extract relative path from full file path
-    const relativePath = p.file.replace(root, '').replace(/\\/g, '/').replace(/^\//, '');
-    lines.push(`* [${p.name}](${relativePath}) (${p.url}) last ${clockFmt(p.lastSeen)} state: ${p.state}`);
+    const path = relative(root, p.file).replace(/\\/g, '/');
+    lines.push(`* [${p.name}](${path}) (${p.url}) last ${clockFmt(p.lastSeen)} state: ${p.state}`);
   }
   
   writeFileSync(join(root, MASTER_FILE), lines.join('\n') + '\n', 'utf8');

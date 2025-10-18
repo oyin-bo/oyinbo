@@ -1,8 +1,10 @@
-// @ts-check
+// @ts-nocheck
+
+import { testRunnerScript } from './test-runner.js';
+import { workerMainFunction } from './worker.js';
 
 /** Browser injector script */
-export const clientScript = `
-(async function() {
+export async function clientMainFunction() {
   console.log('[oyinbo] injected');
   
   let name = sessionStorage.getItem('oyinbo-name');
@@ -15,8 +17,92 @@ export const clientScript = `
         ].join(',').split(',');
     const now = new Date();
     const time = [now.getHours(), now.getMinutes(), now.getSeconds()].map(x => String(x).padStart(2, '0'));
-    name = \`\${Math.floor(Math.random() * 15) + 5}-\${words[Math.floor(Math.random() * words.length)]}-\${time[0]}\${time[1]}-\${time[2]}\`;
+    name = (Math.floor(Math.random() * 15) + 5) + '-' + words[Math.floor(Math.random() * words.length)] + '-' + time[0] + time[1] + '-' + time[2];
     sessionStorage.setItem('oyinbo-name', name);
+  }
+  
+  // Worker management
+  let worker = null;
+  let workerHealthCheckInterval = null;
+  let lastWorkerPong = Date.now();
+  let workerRestartCount = 0;
+  const MAX_RESTART_ATTEMPTS = 5;
+  const WORKER_HEALTH_CHECK_INTERVAL = 10000;
+  const WORKER_TIMEOUT = 20000;
+  
+  function createWorker() {
+    if (workerRestartCount >= MAX_RESTART_ATTEMPTS) {
+      console.warn('[oyinbo] max worker restart attempts reached');
+      return null;
+    }
+    
+    try {
+      const workerName = name + '-webworker';
+      const workerCode = 
+        'const __ORIGIN__ = ' + JSON.stringify(location.origin) + ';\n' +
+        '(' + testRunnerScript + ')();\n' +
+        '(' + workerMainFunction + ')();';
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      const blobUrl = URL.createObjectURL(blob);
+      const w = new Worker(blobUrl, { name: workerName });
+      
+      w.addEventListener('message', e => {
+        if (e.data?.type === 'pong') lastWorkerPong = Date.now();
+      });
+      
+      w.addEventListener('error', e => {
+        console.warn('[oyinbo] worker error:', e.message);
+      });
+      
+      console.log('[oyinbo] worker created:', workerName);
+      workerRestartCount++;
+      lastWorkerPong = Date.now();
+      
+      fetch('/oyinbo?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'worker-init', mainPage: name })
+      }).catch(() => {});
+      
+      return w;
+    } catch (err) {
+      console.warn('[oyinbo] worker creation failed:', err.message);
+      return null;
+    }
+  }
+  
+  function checkWorkerHealth() {
+    if (!worker) return;
+    const timeSinceLastPong = Date.now() - lastWorkerPong;
+    
+    if (timeSinceLastPong > WORKER_TIMEOUT) {
+      console.warn('[oyinbo] worker unresponsive, restarting');
+      const workerName = name + '-webworker';
+      fetch('/oyinbo?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'worker-timeout', duration: timeSinceLastPong })
+      }).catch(() => {});
+      
+      worker.terminate();
+      worker = createWorker();
+      
+      if (!worker && workerRestartCount >= MAX_RESTART_ATTEMPTS) {
+        clearInterval(workerHealthCheckInterval);
+        workerHealthCheckInterval = null;
+      }
+    } else {
+      try {
+        worker.postMessage({ type: 'ping' });
+      } catch (err) {
+        console.warn('[oyinbo] worker ping failed:', err.message);
+      }
+    }
+  }
+  
+  worker = createWorker();
+  if (worker) {
+    workerHealthCheckInterval = setInterval(checkWorkerHealth, WORKER_HEALTH_CHECK_INTERVAL);
   }
   
   const endpoint = '/oyinbo?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(location.href);
@@ -25,6 +111,8 @@ export const clientScript = `
   
   window.addEventListener('error', e => errors.push(e.error?.stack || e.message || String(e)));
   window.addEventListener('unhandledrejection', e => errors.push(e.reason?.stack || String(e.reason)));
+  
+  // Test runner will be injected here
   
   while (true) {
     try {
@@ -57,5 +145,10 @@ export const clientScript = `
       await sleep(3000);
     }
   }
-})();
-`;
+}
+
+export const clientScript = 
+  '(' + testRunnerScript + ')();\n' +
+  'const testRunnerScript = ' + testRunnerScript + ';\n' +
+  'const workerMainFunction = ' + workerMainFunction + ';\n' +
+  '(' + clientMainFunction + ')();';

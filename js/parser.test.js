@@ -1,7 +1,7 @@
 // @ts-check
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRequest } from '../js/parser.js';
+import { parseRequest } from './parser.js';
 
 test('parseRequest extracts code from footer-based request with agent header', () => {
   const input = [

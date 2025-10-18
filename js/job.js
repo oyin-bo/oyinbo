@@ -40,6 +40,8 @@ export function create(page, agent, code, requestHasFooter = true) {
   page.state = 'executing';
   // @ts-ignore
   job.timeout = setTimeout(() => onTimeout(job), TIMEOUT_MS);
+  // Don't keep the event loop alive for long-running timers in tests
+  try { if (job.timeout && typeof job.timeout.unref === 'function') job.timeout.unref(); } catch {}
   return job;
 }
 
@@ -72,6 +74,7 @@ export function start(job) {
       fs.writeFileSync(job.page.file, text, 'utf8');
     } catch {}
   }, 5000);
+  try { if (job._placeholderInterval && typeof job._placeholderInterval.unref === 'function') job._placeholderInterval.unref(); } catch {}
 }
 
 /** @param {Job} job */

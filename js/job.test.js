@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as job from '../js/job.js';
+import * as job from './job.js';
 
 test('create sets agent field correctly', () => {
   const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));

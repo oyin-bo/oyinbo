@@ -10,7 +10,7 @@ import { join } from 'node:path';
 
 // Import module to get access to functions
 // Note: sanitizeName and clockFmt are internal - we'll test them indirectly or export for testing
-import * as registry from '../js/registry.js';
+import * as registry from './registry.js';
 
 test('getOrCreate creates new page when not exists', () => {
   const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));

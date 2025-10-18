@@ -22,6 +22,38 @@ const findFooter = lines => {
   return -1;
 };
 
+/**
+ * Write a system diagnostic message to a page's chat log
+ * @param {string} file - Path to the page's chat file
+ * @param {string} message - Diagnostic message
+ */
+export function writeDiagnostic(file, message) {
+  if (!existsSync(file)) {
+    // File doesn't exist yet, create it with diagnostic
+    const content = `# Worker Diagnostics\n\n> ${message}\n\n${FOOTER}`;
+    writeFileSync(file, content, 'utf8');
+    return;
+  }
+  
+  const lines = readFileSync(file, 'utf8').split('\n');
+  const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
+  const now = Date.now();
+  const timestamp = clockFmt(now);
+  
+  const output = [
+    ...lines.slice(0, footerIdx),
+    '',
+    `> **System** at ${timestamp}`,
+    '```Text',
+    message,
+    '```',
+    '',
+    FOOTER
+  ].join('\n');
+  
+  writeFileSync(file, output, 'utf8');
+}
+
 // Export helper functions for testing
 export { clockFmt, durationFmt, findFooter, findLastFencedBlock, findAgentHeaderAbove, buildBlocks };
 

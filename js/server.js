@@ -225,9 +225,31 @@ function handleResult(url, req, res) {
   req.on('data', chunk => body += chunk);
   req.on('end', () => {
     try {
-      const j = job.get(url.searchParams.get('name') || '');
+      const payload = JSON.parse(body);
+      const name = url.searchParams.get('name') || '';
+      
+      // Handle worker timeout diagnostics
+      if (payload.type === 'worker-timeout') {
+        const page = registry.get(name);
+        if (page) {
+          writer.writeDiagnostic(
+            page.file,
+            `Worker unresponsive for ${payload.duration}ms, restarting...`
+          );
+        }
+        return res.writeHead(200).end('ok');
+      }
+      
+      // Handle worker init messages
+      if (payload.type === 'worker-init') {
+        // Just acknowledge, worker will poll normally
+        return res.writeHead(200).end('ok');
+      }
+      
+      // Handle normal job results
+      const j = job.get(name);
       if (j) {
-        writer.writeReply(j, JSON.parse(body));
+        writer.writeReply(j, payload);
         job.finish(j);
       }
       res.writeHead(200).end('ok');

@@ -1,10 +1,20 @@
 // @ts-check
 import { join, relative } from 'node:path';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
-import { sanitizeName, randomId, clockFmt } from './utils.js';
 
 const DEBUG_DIR = 'debug';
 const MASTER_FILE = 'debug.md';
+
+/** @param {string} name */
+const sanitizeName = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/** @param {number} ms */
+const clockFmt = ms => {
+  const d = new Date(ms);
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(x => String(x).padStart(2, '0'))
+    .join(':');
+};
 
 /**
  * @typedef {{
@@ -21,15 +31,9 @@ const pages = new Map();
 
 /** @param {string} root */
 export function init(root) {
-  // Do not create `debug/` directory here - agents must create per-instance files.
-  // Ensure the master registry exists and is managed by the server.
   const master = join(root, MASTER_FILE);
-  if (!existsSync(master)) {
-    writeFileSync(master,
-      '# Connected pages:\n\n' +
-      '> Master registry of connected pages and states.\n\n',
-      'utf8');
-  }
+  if (!existsSync(master)) 
+    writeFileSync(master, '# Connected pages:\n\n> Master registry of connected pages and states.\n\n', 'utf8');
 }
 
 /** @param {string} root @param {string} name @param {string} url */
@@ -38,46 +42,27 @@ export function getOrCreate(root, name, url) {
   if (!page) {
     const sanitized = sanitizeName(name);
     const dir = join(root, DEBUG_DIR);
-
-    // If a matching per-instance file already exists (created by an agent)
-    // prefer that file and only register when it contains the canonical footer.
     let chosenFilename = null;
+    
     if (existsSync(dir)) {
       try {
         for (const f of readdirSync(dir)) {
           if (!f.toLowerCase().startsWith(sanitized)) continue;
-          const p = join(dir, f);
           try {
-            const txt = readFileSync(p, 'utf8');
-            if (txt.includes('> Write code in a fenced JS block')) {
+            if (readFileSync(join(dir, f), 'utf8').includes('> Write code in a fenced JS block')) {
               chosenFilename = f;
               break;
             }
-          } catch (e) {
-            // ignore unreadable files
-          }
+          } catch {}
         }
-      } catch (e) {
-        // ignore directory read errors
-      }
+      } catch {}
     }
 
-  // If no agent-created file exists yet, prefer the sanitized filename
-  // (per spec). If an agent later creates a suffixed filename we will
-  // detect and adopt it on subsequent lookups.
-  const filename = chosenFilename || `${sanitized}.md`;
-    const file = join(root, DEBUG_DIR, filename);
-
+    const file = join(root, DEBUG_DIR, chosenFilename || `${sanitized}.md`);
     page = { name, url, file, state: 'idle', lastSeen: Date.now() };
     pages.set(name, page);
-
-    // Log first-time registration (two-space indent) with relative path.
-    try {
-      const rel = relative(root, file).replace(/\\/g, '/');
-      console.log(`  ${url} connected for ${rel}`);
-    } catch (e) {}
-
-    // Persist the master registry link even when the per-instance file is missing.
+    
+    try { console.log(`  ${url} connected for ${relative(root, file).replace(/\\/g, '/')}`); } catch {}
     updateMaster(root);
   }
   page.lastSeen = Date.now();
@@ -86,24 +71,14 @@ export function getOrCreate(root, name, url) {
 
 /** @param {string} root */
 export function updateMaster(root) {
-  const lines = [
-    '# Connected pages:\n',
-    '> Master registry of connected pages and states.\n'
-  ];
-  
+  const lines = ['# Connected pages:\n', '> Master registry of connected pages and states.\n'];
   for (const p of Array.from(pages.values()).sort((a, b) => b.lastSeen - a.lastSeen)) {
     const path = relative(root, p.file).replace(/\\/g, '/');
     lines.push(`* [${p.name}](${path}) (${p.url}) last ${clockFmt(p.lastSeen)} state: ${p.state}`);
   }
-  
   writeFileSync(join(root, MASTER_FILE), lines.join('\n') + '\n', 'utf8');
 }
 
 /** @param {string} name */
-export function get(name) {
-  return pages.get(name);
-}
-
-export function all() {
-  return Array.from(pages.values());
-}
+export const get = name => pages.get(name);
+export const all = () => Array.from(pages.values());

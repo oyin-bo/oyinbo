@@ -14,7 +14,6 @@ js/
   writer.js    - Write replies to per-instance files
   watcher.js   - Watch per-instance files for changes
   client.js    - Browser injector script
-  utils.js     - Shared utilities (time format, sanitize, etc.)
 ```
 
 ## Usage

@@ -10,5 +10,7 @@ const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
 const PORT = Number(process.env.PORT) || 8302;
 
-registry.init(ROOT);
-server.start(ROOT, PORT);
+export function run() {
+  registry.init(ROOT);
+  server.start(ROOT, PORT);
+}

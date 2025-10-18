@@ -21,89 +21,57 @@ export function start(root, port) {
   const server = createServer((req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     
-    // REPL endpoint
     if (url.pathname === '/oyinbo') {
       if (req.method === 'GET') return handlePoll(root, url, res);
       if (req.method === 'POST') return handleResult(url, req, res);
     }
     
-    // Static files
-    let path = url.pathname;
-    if (path.endsWith('/')) path += 'index.html';
-    if (path === '/') path = '/index.html';
+    let path = url.pathname === '/' || url.pathname.endsWith('/') 
+      ? url.pathname + (url.pathname === '/' ? 'index.html' : 'index.html')
+      : url.pathname;
     
     const file = join(root, path);
-    if (!existsSync(file)) {
-      res.writeHead(404).end('Not found');
-      return;
-    }
+    if (!existsSync(file)) return res.writeHead(404).end('Not found');
     
-    // Inject client script into HTML
     if (extname(file) === '.html') {
-      const html = readFileSync(file, 'utf8');
-      const injected = html.replace('</head>', `<script>${clientScript}</script></head>`);
-      res.writeHead(200, { 'Content-Type': MIME['.html'] }).end(injected);
-      return;
+      const injected = readFileSync(file, 'utf8').replace('</head>', `<script>${clientScript}</script></head>`);
+      return res.writeHead(200, { 'Content-Type': MIME['.html'] }).end(injected);
     }
     
-    const type = MIME[extname(file)] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': type });
+    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
     createReadStream(file).pipe(res);
   });
   
-  server.listen(port, () => {
-    console.log(`[oyinbo] http://localhost:${port}/`);
-  });
+  server.listen(port, () => console.log(`[oyinbo] http://localhost:${port}/`));
 }
 
 /** @param {string} root @param {URL} url @param {import('http').ServerResponse} res */
 function handlePoll(root, url, res) {
   const name = url.searchParams.get('name') || '';
-  const href = url.searchParams.get('url') || '';
+  if (!name) return res.writeHead(400).end('missing name');
   
-  if (!name) {
-    res.writeHead(400).end('missing name');
-    return;
-  }
-  
-  const page = registry.getOrCreate(root, name, href);
+  const page = registry.getOrCreate(root, name, url.searchParams.get('url') || '');
   watcher.watchPage(root, page);
   
   const j = job.get(page.name);
-  if (!j) {
-    // No job, send empty (poll again)
-    res.writeHead(200, { 'Content-Type': 'application/javascript' }).end('');
-    return;
-  }
+  if (!j) return res.writeHead(200, { 'Content-Type': 'application/javascript' }).end('');
   
-  // Send job
-  // Only start the job on the first poll that finds it; job.start is idempotent but avoid extra calls
   if (!j.startedAt) job.start(j);
-  res.writeHead(200, {
-    'Content-Type': 'application/javascript',
-    'x-job-id': j.id
-  }).end(j.code);
+  res.writeHead(200, { 'Content-Type': 'application/javascript', 'x-job-id': j.id }).end(j.code);
 }
 
 /** @param {URL} url @param {import('http').IncomingMessage} req @param {import('http').ServerResponse} res */
 function handleResult(url, req, res) {
   let body = '';
   req.setEncoding('utf8');
-  req.on('data', chunk => { body += chunk; });
+  req.on('data', chunk => body += chunk);
   req.on('end', () => {
     try {
-      const data = JSON.parse(body);
-      const name = url.searchParams.get('name') || '';
-      const j = job.get(name);
-      
-      if (!j) {
-        res.writeHead(200).end('ok');
-        return;
+      const j = job.get(url.searchParams.get('name') || '');
+      if (j) {
+        writer.writeReply(j, JSON.parse(body));
+        job.finish(j);
       }
-      
-      writer.writeReply(j, data);
-      job.finish(j);
-      
       res.writeHead(200).end('ok');
     } catch (err) {
       console.error('[result] error:', err);

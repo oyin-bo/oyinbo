@@ -8,6 +8,7 @@ import fs from 'node:fs';
  *   id: string,
  *   page: import('./registry.js').Page,
  *   agent: string,
+ *   requestHasFooter?: boolean,
  *   code: string,
  *   requestedAt: number,
  *   startedAt: number | null,
@@ -23,14 +24,15 @@ const jobs = new Map();
 let nextId = 1;
 const TIMEOUT_MS = 60_000;
 
-/** @param {import('./registry.js').Page} page @param {string} agent @param {string} code */
-export function create(page, agent, code) {
+/** @param {import('./registry.js').Page} page @param {string} agent @param {string} code @param {boolean} requestHasFooter */
+export function create(page, agent, code, requestHasFooter = true) {
   const id = String(nextId++);
   const job = {
     id,
     page,
     agent,
     code,
+    requestHasFooter,
     requestedAt: Date.now(),
     startedAt: null,
     finishedAt: null,
@@ -54,14 +56,17 @@ export function get(pageName) {
 /** @param {Job} job */
 async function onTimeout(job) {
   if (job.finishedAt) return;
-  
-  writer.writeReply(job, {
-    ok: false,
-    error: `job timed out after ${TIMEOUT_MS}ms`,
-    errors: []
-  });
-  
-  finish(job);
+  try {
+    writer.writeReply(job, {
+      ok: false,
+      error: `job timed out after ${TIMEOUT_MS}ms`,
+      errors: []
+    });
+  } catch (err) {
+    console.warn('[job] onTimeout: writeReply failed', err);
+  } finally {
+    finish(job);
+  }
 }
 
 /** @param {Job} job */

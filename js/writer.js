@@ -1,5 +1,5 @@
 // @ts-check
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { clockFmt, durationFmt } from './utils.js';
 
 // Local helpers - everything inline, no external constants
@@ -22,7 +22,7 @@ function replyHeader(page, agent, ts, dur, err) {
 
 /** @param {string[]} lines */
 function findFooter(lines) {
-  for (let i - lines.length - 1; i >= 0; i--) {
+  for (let i = lines.length - 1; i >= 0; i--) {
     if (lines[i].startsWith('> Write code in a fenced JS block')) return i;
   }
   return -1;
@@ -42,6 +42,30 @@ function findExecutingBlock(lines, page, agent) {
     }
   }
   return null;
+}
+
+/** @param {string[]} lines */
+function findLastFencedBlock(lines) {
+  // Find last closing fence ``` then find matching opening fence above it
+  let end = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (/^```/.test(lines[i].trim())) { end = i; break; }
+  }
+  if (end < 0) return null;
+  // find opening fence
+  for (let i = end - 1; i >= 0; i--) {
+    if (/^```(?:JS|js|javascript)?/.test(lines[i].trim())) return { start: i, end };
+  }
+  return null;
+}
+
+/** @param {string[]} lines @param {number} startIdx */
+function findAgentHeaderAbove(lines, startIdx) {
+  let idx = startIdx - 1;
+  while (idx >= 0 && !lines[idx].trim()) idx--;
+  if (idx < 0) return -1;
+  if (/^>\s*\*\*/.test(lines[idx].trim())) return idx;
+  return -1;
 }
 
 /** @param {{ ok: boolean, value?: any, error?: any, errors?: string[] }} result */
@@ -74,9 +98,14 @@ function buildBlocks(result) {
  * @param {{ ok: boolean, value?: any, error?: any, errors?: string[] }} result
  */
 export function writeReply(job, result) {
+  if (!existsSync(job.page.file)) {
+    console.warn(`[writer] writeReply: target file missing ${job.page.file}; skipping write`);
+    return;
+  }
   const lines = readFileSync(job.page.file, 'utf8').split('\n');
   const execBlock = findExecutingBlock(lines, job.page.name, job.agent);
-  const footerIdx = findFooter(lines);
+  let footerIdx = findFooter(lines);
+  if (footerIdx < 0) footerIdx = lines.length;
   
   const now = Date.now();
   const duration = job.startedAt ? now - job.startedAt : 0;
@@ -95,21 +124,63 @@ export function writeReply(job, result) {
       FOOTER
     ].join('\n');
   } else {
-    // No executing block, append full request + reply
-    const agent = agentHeader(job.agent, job.page.name, job.requestedAt || now);
-    const code = '```JS\n' + job.code + '\n```';
-    
-    output = [
-      ...lines.slice(0, footerIdx),
-      '',
-      agent,
-      code,
-      '',
-      reply,
-      ...blocks,
-      '',
-      FOOTER
-    ].join('\n');
+    // No executing block.
+    if (job.requestHasFooter === false) {
+      const lastFence = findLastFencedBlock(lines);
+      if (lastFence) {
+        const agentIdx = findAgentHeaderAbove(lines, lastFence.start);
+        let prefixLines;
+        if (agentIdx >= 0) {
+          // Keep existing agent header and the fenced block as-is
+          prefixLines = lines.slice(0, lastFence.end + 1);
+        } else {
+          // Insert agent header before the fenced block
+          prefixLines = [
+            ...lines.slice(0, lastFence.start),
+            agentHeader(job.agent, job.page.name, job.requestedAt || now),
+            lines.slice(lastFence.start, lastFence.end + 1).join('\n')
+          ];
+        }
+
+        output = [
+          ...prefixLines,
+          '',
+          reply,
+          ...blocks,
+          '',
+          FOOTER
+        ].join('\n');
+      } else {
+        // fallback: append normally
+        const agent = agentHeader(job.agent, job.page.name, job.requestedAt || now);
+        const code = '```JS\n' + job.code + '\n```';
+        output = [
+          ...lines.slice(0, footerIdx),
+          '',
+          agent,
+          code,
+          '',
+          reply,
+          ...blocks,
+          '',
+          FOOTER
+        ].join('\n');
+      }
+    } else {
+      const agent = agentHeader(job.agent, job.page.name, job.requestedAt || now);
+      const code = '```JS\n' + job.code + '\n```';
+      output = [
+        ...lines.slice(0, footerIdx),
+        '',
+        agent,
+        code,
+        '',
+        reply,
+        ...blocks,
+        '',
+        FOOTER
+      ].join('\n');
+    }
   }
   
   writeFileSync(job.page.file, output, 'utf8');
@@ -120,25 +191,69 @@ export function writeReply(job, result) {
  * @param {import('./job.js').Job} job
  */
 export function writeExecuting(job) {
+  if (!existsSync(job.page.file)) {
+    console.warn(`[writer] writeExecuting: target file missing ${job.page.file}; skipping write`);
+    return;
+  }
   const lines = readFileSync(job.page.file, 'utf8').split('\n');
-  const footerIdx = findFooter(lines);
+  let footerIdx = findFooter(lines);
+  if (footerIdx < 0) footerIdx = lines.length;
   
   const now = Date.now();
   const agent = agentHeader(job.agent, job.page.name, job.requestedAt || now);
   const code = '```JS\n' + job.code + '\n```';
   const executing = `> **${job.page.name}** to ${job.agent} at ${clockFmt(now)}`;
-  
-  const output = [
-    ...lines.slice(0, footerIdx),
-    '',
-    agent,
-    code,
-    '',
-    executing,
-    'executing (0s)',
-    '',
-    FOOTER
-  ].join('\n');
-  
+  let output;
+  if (job.requestHasFooter === false) {
+    const lastFence = findLastFencedBlock(lines);
+    if (lastFence) {
+      const agentIdx = findAgentHeaderAbove(lines, lastFence.start);
+      let prefixLines;
+      if (agentIdx >= 0) {
+        prefixLines = lines.slice(0, lastFence.end + 1);
+      } else {
+        prefixLines = [
+          ...lines.slice(0, lastFence.start),
+          agent,
+          lines.slice(lastFence.start, lastFence.end + 1).join('\n')
+        ];
+      }
+
+      output = [
+        ...prefixLines,
+        '',
+        executing,
+        'executing (0s)',
+        '',
+        FOOTER
+      ].join('\n');
+    } else {
+      // fallback
+      output = [
+        ...lines.slice(0, footerIdx),
+        '',
+        agent,
+        code,
+        '',
+        executing,
+        'executing (0s)',
+        '',
+        FOOTER
+      ].join('\n');
+    }
+  } else {
+    output = [
+      ...lines.slice(0, footerIdx),
+      '',
+      agent,
+      code,
+      '',
+      executing,
+      'executing (0s)',
+      '',
+      FOOTER
+    ].join('\n');
+  }
+
   writeFileSync(job.page.file, output, 'utf8');
 }

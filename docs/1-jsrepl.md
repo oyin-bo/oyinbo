@@ -7,6 +7,8 @@ This document specifies the file-based JavaScript REPL behaviour used by the loc
 - Master registry: `debug.md` at repository root. Very small surface area — lists active realm instances and their current state (idle/executing/completed/failed) with last heartbeat timestamps.
 - Per-instance chat log files: stored under `debug/` directory at repo root. One file per realm instance (for example: `debug/index-7-zen-1201-03-1a2b.md`). These are the authoritative, append-only chat logs for each realm instance.
 
+Per-instance chat-log files under `debug/` directory must be created by agents. That of course includes the directory herself. The server will not automatically create per-instance `.md` files nor the directory; it will only detect and manage files that already exist on disk. When an agent creates or recreates a per-instance file (including restoring a deleted file) and places the canonical footer, the server will detect it, register the page in `debug.md`, and take over lifecycle management for that file. If a per-instance file is deleted, the server will not recreate it — the file must be recreated by the agent for the server to resume management.
+
 
 Directories (relative to repo root):
 
@@ -19,10 +21,7 @@ debug/                  # per-instance logs
 
 ## File naming and sanitization
 
-- Per-instance filename pattern: `<sanitized-name>-<short-id>.md`
-  - `sanitized-name`: lowercase alphanumerics, hyphens for separators. Derived from the page's display name (e.g., the browser tab name). Non-ASCII and unsafe characters are removed or replaced.
-  - `short-id`: 4–8 hex characters generated at job creation time to disambiguate instances with identical names.
-- Example: a page named "Index - 7 Zen" becomes `index-7-zen-1a2b.md`.
+- Per-instance filename pattern: `<page-name>.md` where `<page-name>` is a sanitized version of the realm instance name reported from the remote realm. Sanitization merely removes susceptible non-filename-safe characters and lowercases the name.
 
 ## Master registry (`debug.md`) format
 
@@ -37,6 +36,8 @@ Header example:
 ```
 
 The master file also contains an at-a-glance list of recent jobs (optional) and pointers to per-instance files. Keep this file under ~200 lines to avoid editor churn.
+
+Registry behaviour: the list inside `debug.md` MUST reflect connected pages and include links to each per-instance file. Links should be emitted whether the target per-instance file currently exists or is missing; a missing link helps to recreate or restore the page file.
 
 Instructive header (human-friendly guidance)
 
@@ -378,10 +379,6 @@ Reply (completed):
   - Continue to update `debug.md` master registry periodically
   - Parse and watch per-instance files for requests (debounced)
   - Write replies to the corresponding per-instance file instead of a single `DEBUG_FILE`
-
-## Backwards compatibility
-
-- Single-file flows MAY be supported by treating `debug.md` as a special per-instance file for a single instance (compat shim) during migration. The spec does not mandate this; implementations may provide compatibility layers as needed.
 
 ---
 

@@ -1,6 +1,6 @@
 // @ts-check
 import { join, relative } from 'node:path';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { sanitizeName, randomId, clockFmt } from './utils.js';
 
 const DEBUG_DIR = 'debug';
@@ -21,9 +21,8 @@ const pages = new Map();
 
 /** @param {string} root */
 export function init(root) {
-  const dir = join(root, DEBUG_DIR);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  
+  // Do not create `debug/` directory here - agents must create per-instance files.
+  // Ensure the master registry exists and is managed by the server.
   const master = join(root, MASTER_FILE);
   if (!existsSync(master)) {
     writeFileSync(master,
@@ -38,21 +37,41 @@ export function getOrCreate(root, name, url) {
   let page = pages.get(name);
   if (!page) {
     const sanitized = sanitizeName(name);
-    const filename = `${sanitized}.md`;
+    const dir = join(root, DEBUG_DIR);
+
+    // If a matching per-instance file already exists (created by an agent)
+    // prefer that file and only register when it contains the canonical footer.
+    let chosenFilename = null;
+    if (existsSync(dir)) {
+      try {
+        for (const f of readdirSync(dir)) {
+          if (!f.toLowerCase().startsWith(sanitized)) continue;
+          const p = join(dir, f);
+          try {
+            const txt = readFileSync(p, 'utf8');
+            if (txt.includes('> Write code in a fenced JS block')) {
+              chosenFilename = f;
+              break;
+            }
+          } catch (e) {
+            // ignore unreadable files
+          }
+        }
+      } catch (e) {
+        // ignore directory read errors
+      }
+    }
+
+  // If no agent-created file exists yet, prefer the sanitized filename
+  // (per spec). If an agent later creates a suffixed filename we will
+  // detect and adopt it on subsequent lookups.
+  const filename = chosenFilename || `${sanitized}.md`;
     const file = join(root, DEBUG_DIR, filename);
-    
+
     page = { name, url, file, state: 'idle', lastSeen: Date.now() };
     pages.set(name, page);
-    
-    if (!existsSync(file)) {
-      writeFileSync(file,
-        `# ${name}\n\n` +
-        `> This file is a REPL presented as a chat between you and a live page. ` +
-        `Add a fenced JavaScript block at the bottom and the connected page will run it.\n\n` +
-        `> Write code in a fenced JS block below to execute against this page.\n`,
-        'utf8');
-    }
-    
+
+    // Persist the master registry link even when the per-instance file is missing.
     updateMaster(root);
   }
   page.lastSeen = Date.now();

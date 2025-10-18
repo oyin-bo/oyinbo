@@ -21,3 +21,10 @@ export function durationFmt(ms) {
 export function randomId() {
   return Math.random().toString(36).slice(2, 10);
 }
+
+/** @param {number} len */
+export function randomHex(len = 8) {
+  let s = '';
+  for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 16).toString(16);
+  return s;
+}

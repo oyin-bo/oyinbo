@@ -1,6 +1,7 @@
 // @ts-check
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { clockFmt, durationFmt } from './utils.js';
+import { hasFileBeenSeen } from './watcher.js';
 
 // Local helpers - everything inline, no external constants
 // Make the footer very visible: wide divider, canonical footer line retained
@@ -54,7 +55,7 @@ function findLastFencedBlock(lines) {
   if (end < 0) return null;
   // find opening fence
   for (let i = end - 1; i >= 0; i--) {
-    if (/^```(?:JS|js|javascript)?/.test(lines[i].trim())) return { start: i, end };
+    if (/^```(?:\s*(?:js|javascript))?/.test(lines[i].trim())) return { start: i, end };
   }
   return null;
 }
@@ -98,8 +99,26 @@ function buildBlocks(result) {
  * @param {{ ok: boolean, value?: any, error?: any, errors?: string[] }} result
  */
 export function writeReply(job, result) {
+  const now = Date.now();
+  const duration = job.startedAt ? now - job.startedAt : 0;
+
+  // Prepare concise result snippet for logging (collapse whitespace, truncate 100 chars)
+  let resultText = '';
+  if (result.ok) {
+    const v = result.value;
+    resultText = (v && typeof v === 'object') ? JSON.stringify(v) : String(v);
+  } else {
+    resultText = result.error ?? String(result.error ?? '');
+  }
+  resultText = (resultText || '').replace(/\s+/g, ' ').trim();
+  if (resultText.length > 100) resultText = resultText.slice(0, 100) + '...';
+  const status = result.ok ? 'succeeded' : 'failed';
+  console.info(`> ${job.page.name} to ${job.agent} ${status} in ${durationFmt(duration)} "${resultText}"`);
+
   if (!existsSync(job.page.file)) {
-    console.warn(`[writer] writeReply: target file missing ${job.page.file}; skipping write`);
+    // Warn only if the file was previously seen (deleted by user/editor); do
+    // not warn if the server never observed the file.
+    if (hasFileBeenSeen(job.page.file)) console.warn(`[writer] writeReply: target file missing ${job.page.file}; skipping write`);
     return;
   }
   const lines = readFileSync(job.page.file, 'utf8').split('\n');
@@ -107,8 +126,6 @@ export function writeReply(job, result) {
   let footerIdx = findFooter(lines);
   if (footerIdx < 0) footerIdx = lines.length;
   
-  const now = Date.now();
-  const duration = job.startedAt ? now - job.startedAt : 0;
   const reply = replyHeader(job.page.name, job.agent, now, duration, !result.ok);
   const blocks = buildBlocks(result);
   
@@ -192,7 +209,7 @@ export function writeReply(job, result) {
  */
 export function writeExecuting(job) {
   if (!existsSync(job.page.file)) {
-    console.warn(`[writer] writeExecuting: target file missing ${job.page.file}; skipping write`);
+    if (hasFileBeenSeen(job.page.file)) console.warn(`[writer] writeExecuting: target file missing ${job.page.file}; skipping write`);
     return;
   }
   const lines = readFileSync(job.page.file, 'utf8').split('\n');

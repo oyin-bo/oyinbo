@@ -35,8 +35,9 @@ export function parseRequest(text, pageName) {
     const target = headerMatch?.[2] || pageName;
     const time = headerMatch?.[3] || '';
 
-    const codeChunk = lines.slice(footerIdx + 1 + (headerMatch ? 1 : 0)).join('\n');
-    const codeMatch = /```(?:JS|js|javascript)\s*\n([\s\S]*?)```/i.exec(codeChunk);
+  const codeChunk = lines.slice(footerIdx + 1 + (headerMatch ? 1 : 0)).join('\n');
+  // Accept fenced blocks with optional language (none, js, or javascript)
+  const codeMatch = /```(?:\s*(?:js|javascript))?\s*\n([\s\S]*?)```/i.exec(codeChunk);
 
     if (!codeMatch?.[1]?.trim()) return null;
 
@@ -46,7 +47,8 @@ export function parseRequest(text, pageName) {
   // No footer: tolerate agent-created files that lack the footer.
   // Seek the last fenced JS block in the file and ensure there is no page reply header after it.
   const allText = text;
-  const codeRe = /```(?:JS|js|javascript)\s*\n([\s\S]*?)```/ig;
+  // Accept fenced blocks with optional language (none, js, or javascript)
+  const codeRe = /```(?:\s*(?:js|javascript))?\s*\n([\s\S]*?)```/ig;
   let lastMatch = null;
   let m;
   while ((m = codeRe.exec(allText)) !== null) lastMatch = { match: m[0], code: m[1], index: m.index, lastIndex: codeRe.lastIndex };

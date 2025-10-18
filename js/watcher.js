@@ -9,8 +9,22 @@ const DEBOUNCE_MS = 150;
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const timers = new Map();
 
+/** @type {Set<string>} */
+const activeWatchers = new Set();
+
+/** @type {Set<string>} */
+const seenFiles = new Set();
+
+/** @param {string} file */
+export function hasFileBeenSeen(file) { return seenFiles.has(file); }
+/** @param {string} file */
+export function markFileSeen(file) { seenFiles.add(file); }
+
 /** @param {string} root @param {import('./registry.js').Page} page */
 export function watchPage(root, page) {
+  // Idempotency: avoid creating multiple watchers for the same page
+  if (activeWatchers.has(page.name)) return;
+  activeWatchers.add(page.name);
   let lastContent = '';
   
   const check = () => {
@@ -19,24 +33,20 @@ export function watchPage(root, page) {
         // File not present yet; do nothing. The directory watch will detect creation.
         return;
       }
+      // mark as seen when we successfully read it
+      markFileSeen(page.file);
       const text = readFileSync(page.file, 'utf8');
       if (text === lastContent) return;
       lastContent = text;
-      
-      // Skip if job already running
-      if (job.get(page.name)) {
-        console.log(`[${page.name}] skipping: job already running`);
-        return;
-      }
-      
+
       const req = parseRequest(text, page.name);
-      if (!req) {
-        console.log(`[${page.name}] no new request found (parseRequest returned null)`);
-        return;
-      }
-      
-  console.log(`[${page.name}] new request from ${req.agent}`);
-  job.create(page, req.agent, req.code, req.hasFooter);
+      if (!req) return; // silent when no request
+
+      // Log the accepted request in the requested format with snippet
+      const snippetRaw = (req.code || '').replace(/\s+/g, ' ').trim();
+      const snippet = snippetRaw.length > 20 ? snippetRaw.slice(0, 20) + '...' : snippetRaw;
+      console.info(`> ${req.agent} to ${page.name} "${snippet}"`);
+      job.create(page, req.agent, req.code, req.hasFooter);
       registry.updateMaster(root);
       
     } catch (err) {

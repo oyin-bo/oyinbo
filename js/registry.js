@@ -71,6 +71,12 @@ export function getOrCreate(root, name, url) {
     page = { name, url, file, state: 'idle', lastSeen: Date.now() };
     pages.set(name, page);
 
+    // Log first-time registration (two-space indent) with relative path.
+    try {
+      const rel = relative(root, file).replace(/\\/g, '/');
+      console.log(`  ${url} connected for ${rel}`);
+    } catch (e) {}
+
     // Persist the master registry link even when the per-instance file is missing.
     updateMaster(root);
   }

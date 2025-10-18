@@ -1,7 +1,5 @@
 // @ts-nocheck
 
-import { testRunnerScript } from './test-runner.js';
-
 /** Browser injector script */
 export async function clientMainFunction() {
   console.log('[oyinbo] injected');
@@ -143,7 +141,4 @@ export async function clientMainFunction() {
   }
 }
 
-export const clientScript = 
-  '(' + testRunnerScript + ')();\n' +
-  'const testRunnerScript = ' + testRunnerScript + ';\n' +
-  '(' + clientMainFunction + ')();';
+export const clientScript = '(' + clientMainFunction + ')();';

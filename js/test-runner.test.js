@@ -6,9 +6,10 @@ test('testRunnerScript exports valid string', async () => {
   const { testRunnerScript } = await import('./test-runner.js');
   assert.equal(typeof testRunnerScript, 'string');
   assert.ok(testRunnerScript.length > 100);
-  assert.ok(testRunnerScript.includes('globalThis.test'));
-  assert.ok(testRunnerScript.includes('globalThis.describe'));
-  assert.ok(testRunnerScript.includes('globalThis.oyinboRunTests'));
+  // Module exports test/describe, not globalThis injection
+  assert.ok(testRunnerScript.includes('export function test'));
+  assert.ok(testRunnerScript.includes('export function describe'));
+  assert.ok(testRunnerScript.includes('export async function oyinboRunTests'));
 });
 
 test('testRunnerScript includes assertion library', async () => {

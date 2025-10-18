@@ -94,8 +94,7 @@ export function start(root, port) {
 function processImportMapHTML(html, root) {
   const oyinboMappings = {
     'node:test': '/oyinbo/test-runner.js',
-    'node:assert': '/oyinbo/assert.js',
-    'node:oyinbo/worker': '/oyinbo/worker-bootstrap.js'
+    'node:assert': '/oyinbo/assert.js'
   };
   
   // Check for inline import maps

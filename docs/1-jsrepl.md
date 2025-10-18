@@ -339,6 +339,12 @@ Timeout behaviour:
 -- Python (stretch goal): Support for Jupyter and similar notebook environments is a possible future enhancement.
 -- LISP adapters: Adapters for other environments may map their inputs and outputs into per-instance files in the same format (the fence language tag should match the realm/language used by that adapter).
 
+## Server control commands
+
+The master registry file (`debug.md`) supports special control command that affect server operation (for normal HTTP server only one command currently):
+
+- **Shutdown command**: Writing a full line containing exactly `%%SHUTDOWN%%` to `debug.md` will cause the server to exit gracefully. This is useful during debugging and iteration when a clean server restart is needed without terminating random Node.js processes.
+
 ## Security and safety
 
 - The per-instance files are local to the repository and should not be served publicly. The server should ensure file writes are only performed by the local server process.

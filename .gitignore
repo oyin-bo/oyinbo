@@ -2,3 +2,4 @@
 /debug.md
 /debug/
 .DS_Store
+/.playwright-mcp/

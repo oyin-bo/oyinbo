@@ -47,7 +47,9 @@ export function getOrCreate(root, name, url) {
     if (existsSync(dir)) {
       try {
         for (const f of readdirSync(dir)) {
-          if (!f.toLowerCase().startsWith(sanitized)) continue;
+          // Check if filename matches exactly (without .md extension)
+          const nameWithoutExt = f.replace(/\.md$/i, '');
+          if (nameWithoutExt.toLowerCase() !== sanitized.toLowerCase()) continue;
           try {
             if (readFileSync(join(dir, f), 'utf8').includes('> Write code in a fenced JS block')) {
               chosenFilename = f;

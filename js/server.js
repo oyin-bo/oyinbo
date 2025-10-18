@@ -8,7 +8,7 @@ import * as job from './job.js';
 import * as writer from './writer.js';
 import * as watcher from './watcher.js';
 import { clientScript } from './client.js';
-import { testRunnerModule, assertModule } from './modules-loader.js';
+import { testRunnerModule, assertModule, workerBootstrapModule } from './modules-loader.js';
 
 /** @type {Record<string, string>} */
 const MIME = {
@@ -21,7 +21,8 @@ const MIME = {
 /** @type {Record<string, string>} */
 const OYINBO_MODULES = {
   '/oyinbo/test-runner.js': testRunnerModule,
-  '/oyinbo/assert.js': assertModule
+  '/oyinbo/assert.js': assertModule,
+  '/oyinbo/worker-bootstrap.js': workerBootstrapModule
 };
 
 /** @param {string} root @param {number} port */
@@ -93,7 +94,8 @@ export function start(root, port) {
 function processImportMapHTML(html, root) {
   const oyinboMappings = {
     'node:test': '/oyinbo/test-runner.js',
-    'node:assert': '/oyinbo/assert.js'
+    'node:assert': '/oyinbo/assert.js',
+    'node:oyinbo/worker': '/oyinbo/worker-bootstrap.js'
   };
   
   // Check for inline import maps

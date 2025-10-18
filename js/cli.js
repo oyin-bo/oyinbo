@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import * as registry from './registry.js';
 import * as server from './server.js';
+import * as watcher from './watcher.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -13,4 +14,7 @@ const PORT = Number(process.env.PORT) || 8302;
 export function run() {
   registry.init(ROOT);
   server.start(ROOT, PORT);
+  watcher.watchForRestart(ROOT);
 }
+
+run();

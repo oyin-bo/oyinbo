@@ -18,3 +18,6 @@ import { assert, AssertionError } from '/oyinbo/test-runner.js';
 export { assert, AssertionError };
 export default assert;
 `;
+
+/** Load worker bootstrap module content */
+export const workerBootstrapModule = readFileSync(join(__dirname, 'modules/worker-bootstrap.js'), 'utf8');

@@ -1,5 +1,7 @@
 // @ts-check
-import { watch, readFileSync, existsSync } from 'node:fs';
+import { watch, readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { join } from 'node:path';
 import { parseRequest } from './parser.js';
 import * as job from './job.js';
 import * as registry from './registry.js';
@@ -61,4 +63,51 @@ export function watchPage(root, page) {
     } catch {}
   }
   check();
+}
+
+/**
+ * Watch debug.md for %%SHUTDOWN%% marker and shutdown server if found
+ * @param {string} root
+ */
+export function watchForRestart(root) {
+  const debugFile = join(root, 'debug.md');
+  let lastContent = '';
+  
+  const check = () => {
+    try {
+      if (!existsSync(debugFile)) return;
+      const text = readFileSync(debugFile, 'utf8');
+      if (text === lastContent) return;
+      lastContent = text;
+      
+      // Check for shutdown marker on its own line
+      const lines = text.split('\n');
+      const shutdownLine = lines.findIndex(line => line.trim() === '%%SHUTDOWN%%');
+      
+      if (shutdownLine !== -1) {
+        console.log('[oyinbo] %%SHUTDOWN%% detected in debug.md - shutting down server...');
+        
+        // Remove the marker before shutting down
+        lines.splice(shutdownLine, 1);
+        writeFileSync(debugFile, lines.join('\n'), 'utf8');
+        
+        // Clean shutdown
+        console.log('[oyinbo] Server shutdown complete');
+        process.exit(0);
+      }
+    } catch (err) {
+      console.warn('[watcher] debug.md shutdown check error:', err);
+    }
+  };
+  
+  const debounceCheck = () => {
+    const t = timers.get('__restart__');
+    if (t) clearTimeout(t);
+    timers.set('__restart__', setTimeout(check, DEBOUNCE_MS));
+  };
+  
+  if (existsSync(debugFile)) {
+    watch(debugFile, debounceCheck);
+    check(); // Initial check
+  }
 }

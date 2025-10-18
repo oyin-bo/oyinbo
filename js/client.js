@@ -1,7 +1,6 @@
 // @ts-nocheck
 
 import { testRunnerScript } from './test-runner.js';
-import { workerMainFunction } from './worker.js';
 
 /** Browser injector script */
 export async function clientMainFunction() {
@@ -9,12 +8,12 @@ export async function clientMainFunction() {
   
   let name = sessionStorage.getItem('oyinbo-name');
   if (!name) {
-        const words = [
-          'mint,nova,ember,zen,lumen,oak,river,kite,moss,nook,sol,vibe',
-          'dune,opal,brim,echo,fern,halo,iris,loom,meadow,pulse,quill,reef',
-          'sage,tide,veil,willow,flare,hearth,drift,grove,haze,ivy,knoll,lark',
-          'mist,nest,pebble,quartz,rift,spire,trail,vale,whisper,yarn,zephyr,glow'
-        ].join(',').split(',');
+    const words = [
+      'mint,nova,ember,zen,lumen,oak,river,kite,moss,nook,sol,vibe',
+      'dune,opal,brim,echo,fern,halo,iris,loom,meadow,pulse,quill,reef',
+      'sage,tide,veil,willow,flare,hearth,drift,grove,haze,ivy,knoll,lark',
+      'mist,nest,pebble,quartz,rift,spire,trail,vale,whisper,yarn,zephyr,glow'
+    ].join(',').split(',');
     const now = new Date();
     const time = [now.getHours(), now.getMinutes(), now.getSeconds()].map(x => String(x).padStart(2, '0'));
     name = (Math.floor(Math.random() * 15) + 5) + '-' + words[Math.floor(Math.random() * words.length)] + '-' + time[0] + time[1] + '-' + time[2];
@@ -38,13 +37,10 @@ export async function clientMainFunction() {
     
     try {
       const workerName = name + '-webworker';
-      const workerCode = 
-        'const __ORIGIN__ = ' + JSON.stringify(location.origin) + ';\n' +
-        '(' + testRunnerScript + ')();\n' +
-        '(' + workerMainFunction + ')();';
-      const blob = new Blob([workerCode], { type: 'application/javascript' });
-      const blobUrl = URL.createObjectURL(blob);
-      const w = new Worker(blobUrl, { name: workerName });
+      
+      // Create worker from served module (inherits import maps)
+      const workerUrl = location.origin + '/oyinbo/worker-bootstrap.js';
+      const w = new Worker(workerUrl, { name: workerName, type: 'module' });
       
       w.addEventListener('message', e => {
         if (e.data?.type === 'pong') lastWorkerPong = Date.now();
@@ -150,5 +146,4 @@ export async function clientMainFunction() {
 export const clientScript = 
   '(' + testRunnerScript + ')();\n' +
   'const testRunnerScript = ' + testRunnerScript + ';\n' +
-  'const workerMainFunction = ' + workerMainFunction + ';\n' +
   '(' + clientMainFunction + ')();';

@@ -17,8 +17,18 @@ import fs from 'node:fs';
  * }} Job
  */
 
+/**
+ * @typedef {{
+ *   promise: Promise<Job | null>,
+ *   resolve: (job: Job | null) => void
+ * }} JobPromise
+ */
+
 /** @type {Map<string, Job>} */
 const jobs = new Map();
+
+/** @type {Map<string, JobPromise>} */
+const waitingPromises = new Map();
 
 let nextId = 1;
 const TIMEOUT_MS = 60_000;
@@ -42,11 +52,56 @@ export function create(page, agent, code, requestHasFooter = true) {
   job.timeout = setTimeout(() => onTimeout(job), TIMEOUT_MS);
   // Don't keep the event loop alive for long-running timers in tests
   try { if (job.timeout && typeof job.timeout.unref === 'function') job.timeout.unref(); } catch {}
+  
+  // Resolve any waiting promise for this job
+  const waiting = waitingPromises.get(page.name);
+  if (waiting) {
+    waiting.resolve(job);
+    waitingPromises.delete(page.name);
+  }
+  
   return job;
 }
 
 /** @param {string} pageName */
 export const get = pageName => jobs.get(pageName);
+
+/** Wait for a job to be created for a page name with timeout */
+export function waitForJob(pageName, timeoutMs = 25000) {
+  // Check if job already exists
+  const existingJob = jobs.get(pageName);
+  if (existingJob) {
+    return Promise.resolve(existingJob);
+  }
+  
+  // Check if there's already a waiting promise for this page
+  const existing = waitingPromises.get(pageName);
+  if (existing) {
+    return existing.promise;
+  }
+  
+  // Create a new promise and cache it
+  let resolveJob;
+  const promise = new Promise((resolve) => {
+    resolveJob = resolve;
+  });
+  
+  // Set up timeout to resolve with null if no job arrives
+  const timeoutHandle = setTimeout(() => {
+    waitingPromises.delete(pageName);
+    resolveJob(null);
+  }, timeoutMs);
+  
+  waitingPromises.set(pageName, {
+    promise,
+    resolve: (job) => {
+      clearTimeout(timeoutHandle);
+      resolveJob(job);
+    }
+  });
+  
+  return promise;
+}
 
 /** @param {Job} job */
 async function onTimeout(job) {

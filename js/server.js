@@ -219,15 +219,23 @@ function mergeImportMaps(existing) {
 }
 
 /** @param {string} root @param {URL} url @param {import('http').ServerResponse} res */
-function handlePoll(root, url, res) {
+async function handlePoll(root, url, res) {
   const name = url.searchParams.get('name') || '';
   if (!name) return res.writeHead(400).end('missing name');
   
   const page = registry.getOrCreate(root, name, url.searchParams.get('url') || '');
   watcher.watchPage(root, page);
   
-  const j = job.get(page.name);
-  if (!j) return res.writeHead(200, { 'Content-Type': 'application/javascript' }).end('');
+  let j = job.get(page.name);
+  if (!j) {
+    // Long-polling: wait for a job to become available (randomized 10-15s timeout)
+    const pollTimeout = 10000 + Math.random() * 5000;
+    j = await job.waitForJob(page.name, pollTimeout);
+  }
+  
+  if (!j) {
+    return res.writeHead(200, { 'Content-Type': 'application/javascript' }).end('');
+  }
   
   if (!j.startedAt) job.start(j);
   res.writeHead(200, { 'Content-Type': 'application/javascript', 'x-job-id': j.id }).end(j.code);

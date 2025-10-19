@@ -1,6 +1,7 @@
 // @ts-check
 import { join, relative } from 'node:path';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
+import { daebugIndex } from './templates/daebug-index.js';
 
 const DAEBUG_DIR = 'daebug';
 const MASTER_FILE = 'daebug.md';
@@ -34,8 +35,13 @@ const pages = new Map();
 /** @param {string} root */
 export function init(root) {
   const master = join(root, MASTER_FILE);
-  if (!existsSync(master)) 
-    writeFileSync(master, '# 👾 DAEBUG started at ' + startTime + ':\n\n> Master registry of connected pages and states.\n\n', 'utf8');
+  if (!existsSync(master)) {
+    const content = daebugIndex({
+      startTime: startTime.toString(),
+      pageList: ''
+    });
+    writeFileSync(master, content, 'utf8');
+  }
 }
 
 /** @param {string} root @param {string} name @param {string} url */
@@ -76,12 +82,18 @@ export function getOrCreate(root, name, url) {
 
 /** @param {string} root */
 export function updateMaster(root) {
-  const lines = ['# 👾 DAEBUG started at ' + startTime + '\n', '> Master registry of connected pages and states.\n'];
+  const pageLines = [];
   for (const p of Array.from(pages.values()).sort((a, b) => b.lastSeen - a.lastSeen)) {
     const path = relative(root, p.file).replace(/\\/g, '/');
-    lines.push(`* [${p.name}](${path}) (${p.url}) last ${clockFmt(p.lastSeen)} state: ${p.state}`);
+    pageLines.push(`* [${p.name}](${path}) (${p.url}) last ${clockFmt(p.lastSeen)} state: ${p.state}`);
   }
-  writeFileSync(join(root, MASTER_FILE), lines.join('\n') + '\n', 'utf8');
+  
+  const content = daebugIndex({
+    startTime: startTime.toString(),
+    pageList: pageLines.join('\n')
+  });
+  
+  writeFileSync(join(root, MASTER_FILE), content, 'utf8');
 }
 
 /** @param {string} name */

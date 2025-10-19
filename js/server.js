@@ -9,6 +9,7 @@ import * as writer from './writer.js';
 import * as watcher from './watcher.js';
 import { clientScript } from './client.js';
 import { testRunnerModule, assertModule, workerBootstrapModule } from './modules-loader.js';
+import { installShutdownHandlers } from './shutdown.js';
 
 /** @type {Record<string, string>} */
 const MIME = {
@@ -27,6 +28,9 @@ const DAEBUG_MODULES = {
 
 /** @param {string} root @param {number} port */
 export function start(root, port) {
+  // Install handlers for graceful shutdown on Ctrl+C and other signals
+  installShutdownHandlers(root);
+  
   const server = createServer((req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     

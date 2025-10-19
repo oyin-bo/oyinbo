@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { parseRequest } from './parser.js';
 import * as job from './job.js';
 import * as registry from './registry.js';
+import { daebugIndex } from './templates/daebug-index.js';
 
 const DEBOUNCE_MS = 150;
 
@@ -96,10 +97,16 @@ export function watchForRestart(root) {
         const shutdownRequestedAt = new Date();
         console.log('👾' + shutdownRequestedAt.toLocaleTimeString() + ' %%SHUTDOWN%% detected in daebug.md - shutting down server...');
         
-        // Update daebug.md with server down message
-        const downMessage = `# Server has been shut down ${shutdownRequestedAt.toLocaleTimeString()}
-
-> The server has been shut down with an explicit command. Run \`npm start\` to restart it.`;
+        // Get start time from registry module
+        const startTimeMatch = text.match(/started at (.+)/i);
+        const startTime = startTimeMatch ? startTimeMatch[1] : 'unknown';
+        
+        // Update daebug.md with shutdown template
+        const downMessage = daebugIndex({
+          startTime: startTime,
+          endTime: shutdownRequestedAt.toString(),
+          isShutdown: true
+        });
         writeFileSync(daebugFile, downMessage, 'utf8');
         
         // Clean shutdown

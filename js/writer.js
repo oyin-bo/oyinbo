@@ -55,7 +55,7 @@ export function writeDiagnostic(file, message) {
 }
 
 // Export helper functions for testing
-export { clockFmt, durationFmt, findFooter, findLastFencedBlock, findAgentHeaderAbove, buildBlocks };
+export { clockFmt, durationFmt, findFooter, findLastFencedBlock, findAgentHeaderAbove, buildBlocks, formatBackgroundEvent };
 
 /** @param {string} agent @param {string} target @param {number} ts */
 const agentHeader = (agent, target, ts) => `> **${agent}** to ${target} at ${clockFmt(ts)}`;
@@ -91,7 +91,33 @@ const findAgentHeaderAbove = (lines, startIdx) => {
   return idx >= 0 && /^>\s*\*\*/.test(lines[idx].trim()) ? idx : -1;
 };
 
-/** @param {{ ok: boolean, value?: any, error?: any, errors?: string[] }} result */
+/**
+ * Format background event as a fenced block with specialized metadata
+ * @param {{ type: string, level?: string, source?: string, ts: string, message: string, stack?: string }} event
+ */
+const formatBackgroundEvent = event => {
+  if (event.type === 'error') {
+    const fenceType = event.source || 'Error';
+    const content = event.stack || event.message;
+    return '```' + fenceType + '\n' + content + '\n```';
+  } else if (event.type === 'console') {
+    const level = event.level || 'log';
+    // Try to determine if message is JSON-serializable
+    let fenceType = 'Text';
+    try {
+      JSON.parse(event.message);
+      fenceType = 'JSON';
+    } catch (e) {
+      // Not JSON, use Text
+    }
+    if (level === 'error') fenceType = 'Error';
+    const metadata = 'console.' + level;
+    return '```' + fenceType + ' ' + metadata + '\n' + event.message + '\n```';
+  }
+  return '```Text\n' + event.message + '\n```';
+};
+
+/** @param {{ ok: boolean, value?: any, error?: any, errors?: string[], backgroundEvents?: any[] }} result */
 const buildBlocks = result => {
   const blocks = [];
   if (result.ok) {
@@ -100,7 +126,27 @@ const buildBlocks = result => {
   } else {
     blocks.push('```Error\n' + String(result.error) + '\n```');
   }
-  if (result.errors?.length) {
+  
+  // Handle new backgroundEvents structure
+  if (result.backgroundEvents?.length) {
+    const events = result.backgroundEvents.length > 10
+      ? [
+          ...result.backgroundEvents.slice(0, 2),
+          { type: 'ellipsis', message: `... (${result.backgroundEvents.length - 10} more background events omitted) ...` },
+          ...result.backgroundEvents.slice(-8)
+        ]
+      : result.backgroundEvents;
+    
+    for (const event of events) {
+      if (event.type === 'ellipsis') {
+        blocks.push('\n' + event.message + '\n');
+      } else {
+        blocks.push(formatBackgroundEvent(event));
+      }
+    }
+  }
+  // Backward compatibility: handle old errors array
+  else if (result.errors?.length) {
     const errs = result.errors.length > 10
       ? [...result.errors.slice(0, 2), `... (${result.errors.length - 10} more background events omitted) ...`, ...result.errors.slice(-8)]
       : result.errors;
@@ -112,7 +158,7 @@ const buildBlocks = result => {
 
 /**
  * @param {import('./job.js').Job} job
- * @param {{ ok: boolean, value?: any, error?: any, errors?: string[] }} result
+ * @param {{ ok: boolean, value?: any, error?: any, errors?: string[], backgroundEvents?: any[] }} result
  */
 export function writeReply(job, result) {
   const now = Date.now();

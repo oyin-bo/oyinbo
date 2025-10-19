@@ -4,7 +4,7 @@ A file-based REPL for running JavaScript code in live pages. The server watches 
 
 ## How it works
 
-1. Start the server: `node js/cli.js`
+1. Start the server: `npm start`
 2. Open a page at `http://localhost:8302/` — the client injects and polls the server
 3. Create a file under `debug/` with a fenced code block and the canonical footer
 4. The server runs the code and writes the result back into the same file

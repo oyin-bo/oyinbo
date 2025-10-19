@@ -290,3 +290,311 @@ test('parseRequest preserves whitespace in code', () => {
   
   assert.strictEqual(result.code, '  indented  ');
 });
+
+test('parseRequest returns null when fence contains only a response header', () => {
+  const input = [
+    '----------------------------------------------------------------------',
+    '> Write code in a fenced JS block below',
+    '> **agent** to test-page at 12:34:56',
+    '```js',
+    '> **test-page** to agent at 12:34:57 (**ERROR**) (5ms)',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.strictEqual(result, null);
+});
+
+test('parseRequest returns null when fence contains response header with extra text', () => {
+  const input = [
+    '----------------------------------------------------------------------',
+    '> Write code in a fenced JS block below',
+    '> **agent** to test-page at 12:34:56',
+    '```js',
+    '> **test-page** to agent at 12:34:57',
+    'some more text',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.strictEqual(result, null);
+});
+
+// No-footer scenario tests (user deleted footer)
+test('parseRequest handles no-footer scenario with valid code', () => {
+  const input = [
+    '> **agent** to test-page at 12:34:56',
+    '```JS',
+    '2+3',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.deepStrictEqual(result, {
+    agent: 'agent',
+    target: 'test-page',
+    time: '',
+    code: '2+3',
+    hasFooter: false
+  });
+});
+
+test('parseRequest no-footer finds last fence among multiple blocks', () => {
+  const input = [
+    '> **agent** to test-page at 12:00:00',
+    '```JS',
+    'first',
+    '```',
+    '',
+    '> **test-page** to agent at 12:00:01 (5ms)',
+    '```JSON',
+    '"result"',
+    '```',
+    '',
+    'some separator text',
+    '',
+    '> **agent** to test-page at 12:01:00',
+    '```JS',
+    'second',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.ok(result);
+  assert.strictEqual(result.code, 'second');
+  assert.strictEqual(result.hasFooter, false);
+});
+
+test('parseRequest no-footer rejects response header in fence', () => {
+  const input = [
+    '> **agent** to test-page at 12:00:00',
+    '```JS',
+    '2+3',
+    '```',
+    '',
+    '> **test-page** to agent at 12:00:01 (5ms)',
+    '```JSON',
+    '5',
+    '```',
+    '',
+    'some text',
+    '',
+    '> **agent** to test-page at 12:01:00',
+    '```JS',
+    '> **test-page** to agent at 12:01:01 (**ERROR**) (5ms)',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.strictEqual(result, null);
+});
+
+test('parseRequest no-footer accepts code after error response', () => {
+  const input = [
+    '> **agent** to test-page at 12:00:00',
+    '```JS',
+    '> **test-page** to agent at 12:00:01 (**ERROR**) (5ms)',
+    '```',
+    '',
+    '> **test-page** to agent at 12:00:02 (**ERROR**) (3ms)',
+    '```Error',
+    'SyntaxError: ...',
+    '```',
+    '',
+    'some text',
+    '',
+    '> **agent** to test-page at 12:01:00',
+    '```JS',
+    '5*7',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.ok(result);
+  assert.strictEqual(result.code, '5*7');
+  assert.strictEqual(result.hasFooter, false);
+});
+
+// Footer-based scenario tests with response headers in earlier fences
+test('parseRequest with-footer ignores earlier fence with response header', () => {
+  const input = [
+    '> **agent** to test-page at 12:00:00',
+    '```JS',
+    '> **test-page** to agent at 11:59:59',
+    '```',
+    '',
+    '> **test-page** to agent at 12:00:01 (**ERROR**) (5ms)',
+    '```Error',
+    'SyntaxError: ...',
+    '```',
+    '',
+    '----------------------------------------------------------------------',
+    '> Write code in a fenced JS block below',
+    '',
+    '> **agent** to test-page at 12:01:00',
+    '```JS',
+    '3*4',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.ok(result);
+  assert.strictEqual(result.code, '3*4');
+  assert.strictEqual(result.hasFooter, true);
+});
+
+test('parseRequest with-footer rejects response header in target fence', () => {
+  const input = [
+    '----------------------------------------------------------------------',
+    '> Write code in a fenced JS block below',
+    '',
+    '> **agent** to test-page at 12:01:00',
+    '```JS',
+    '> **test-page** to agent at 12:00:59',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.strictEqual(result, null);
+});
+
+// Real-world scenario: user deletes response but leaves header in fence
+test('parseRequest rejects when user accidentally leaves response header in code fence', () => {
+  const input = [
+    '> **agent** to test-page at 17:23:37',
+    '```JS',
+    '2+3',
+    '```',
+    '',
+    '> **test-page** to agent at 17:23:38 (7ms)',
+    '```JSON',
+    '5',
+    '```',
+    '',
+    'some separator',
+    '',
+    '> **agent** to test-page at 17:24:00',
+    '```JS',
+    '> **test-page** to agent at 17:23:38 (7ms)',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.strictEqual(result, null);
+});
+
+// Edge case: multiple response headers
+test('parseRequest rejects fence starting with any response header pattern', () => {
+  const input = [
+    '> Write code in a fenced JS block below',
+    '```js',
+    '> **any-page** to another-agent at 00:00:00',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.strictEqual(result, null);
+});
+
+// Valid code that happens to contain markdown-like text
+test('parseRequest accepts code with markdown-like comments', () => {
+  const input = [
+    '> Write code in a fenced JS block below',
+    '```js',
+    '// This is a comment, not a markdown header',
+    'const x = 1;',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.ok(result);
+  assert.strictEqual(result.code, '// This is a comment, not a markdown header\nconst x = 1;');
+});
+
+test('parseRequest rejects code starting with exact response header pattern', () => {
+  const input = [
+    '> Write code in a fenced JS block below',
+    '```js',
+    '> **page-name** to agent-name',
+    'more code',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.strictEqual(result, null);
+});
+
+// Complete scenario tests
+test('parseRequest handles complete session with footer', () => {
+  const input = [
+    '> **agent** to test-page at 10:00:00',
+    '```JS',
+    '1+1',
+    '```',
+    '',
+    '> **test-page** to agent at 10:00:01 (5ms)',
+    '```JSON',
+    '2',
+    '```',
+    '',
+    '----------------------------------------------------------------------',
+    '> Write code in a fenced JS block below',
+    '> **bob** to test-page at 10:01:00',
+    '```javascript',
+    'Math.sqrt(16)',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.deepStrictEqual(result, {
+    agent: 'bob',
+    target: 'test-page',
+    time: '10:01:00',
+    code: 'Math.sqrt(16)',
+    hasFooter: true
+  });
+});
+
+test('parseRequest handles complete session without footer after response deletion', () => {
+  const input = [
+    '> **agent** to test-page at 10:00:00',
+    '```JS',
+    '1+1',
+    '```',
+    '',
+    '> **test-page** to agent at 10:00:01 (5ms)',
+    '```JSON',
+    '2',
+    '```',
+    '',
+    'separator text',
+    '',
+    '> **agent** to test-page at 10:01:00',
+    '```JS',
+    '3+3',
+    '```'
+  ].join('\n');
+  
+  const result = parseRequest(input, 'test-page');
+  
+  assert.deepStrictEqual(result, {
+    agent: 'agent',
+    target: 'test-page',
+    time: '',
+    code: '3+3',
+    hasFooter: false
+  });
+});

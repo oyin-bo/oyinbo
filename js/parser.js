@@ -14,9 +14,9 @@
 export function parseRequest(text, pageName) {
   const lines = text.split('\n');
   let footerIdx = -1;
-  for (let i = lines.length - 1; i >= 0; i--) 
+  for (let i = lines.length - 1; i >= 0; i--)
     if (lines[i].startsWith('> Write code in a fenced JS block')) { footerIdx = i; break; }
-  
+
   if (footerIdx >= 0) {
     const chunk = lines.slice(footerIdx + 1).join('\n');
     if (!chunk.trim()) return null;
@@ -26,20 +26,31 @@ export function parseRequest(text, pageName) {
     const codeMatch = /```(?:\s*(?:js|javascript))?\s*\n([\s\S]*?)```/i.exec(codeChunk);
     if (!codeMatch?.[1]?.trim()) return null;
     const code = codeMatch[1].endsWith('\n') ? codeMatch[1].slice(0, -1) : codeMatch[1];
-    return { 
+
+    // Reject if code starts with a response header
+    if (/^>\s*\*\*\S+\*\*\s+to\s+\S+/.test(code.trim())) return null;
+
+    return {
       agent: headerMatch?.[1] || 'agent',
       target: headerMatch?.[2] || pageName,
       time: headerMatch?.[3] || '',
       code: code,
-      hasFooter: true 
+      hasFooter: true
     };
   }
 
-  // No footer: seek last fenced block
-  const codeRe = /```(?:\s*(?:js|javascript))?\s*\n([\s\S]*?)```/ig;
+  // No footer: seek last fenced block  
+  // Match JS/javascript/unlabeled fenced blocks - language tag must be alphanum if present
+  const codeRe = /^```(?:[a-z]*)?$[\r\n]([\s\S]*?)^```\s*$/img;
   let lastMatch = null, m;
-  while ((m = codeRe.exec(text)) !== null) 
-    lastMatch = { code: m[1], index: m.index };
+  while ((m = codeRe.exec(text)) !== null) {
+    // Only accept JS/javascript fences or fences with no language tag
+    const beforeCode = text.slice(Math.max(0, m.index - 100), m.index);
+    const fenceLine = beforeCode.split(/[\r\n]/).pop() || '';
+    const lang = fenceLine.replace(/^```/, '').trim().toLowerCase();
+    if (!lang || lang === 'js' || lang === 'javascript')
+      lastMatch = { code: m[1], index: m.index };
+  }
   if (!lastMatch) return null;
 
   // Check for page reply header above
@@ -48,10 +59,14 @@ export function parseRequest(text, pageName) {
   while (idx >= 0 && !before[idx].trim()) idx--;
   if (idx >= 0) {
     const escName = pageName.replace(/[-\\^$*+?.()|[\]{}]/g, '\\$&');
-    if (new RegExp('^>\\s*\\*\\*' + escName + '\\*\\*\\s+to\\s+\\S+\\s+at\\s+\\d{2}:\\d{2}:\\d{2}').test(before[idx].trim())) 
+    if (new RegExp('^>\\s*\\*\\*' + escName + '\\*\\*\\s+to\\s+\\S+\\s+at\\s+\\d{2}:\\d{2}:\\d{2}').test(before[idx].trim()))
       return null;
   }
 
   const code = lastMatch.code.endsWith('\n') ? lastMatch.code.slice(0, -1) : lastMatch.code;
+
+  // Reject if code starts with a response header
+  if (/^>\s*\*\*\S+\*\*\s+to\s+\S+/.test(code.trim())) return null;
+
   return { agent: 'agent', target: pageName, time: '', code: code, hasFooter: false };
 }

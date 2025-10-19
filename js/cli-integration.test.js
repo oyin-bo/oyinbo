@@ -19,7 +19,7 @@ const INDEX_JS = join(ROOT, 'index.js');
  */
 function spawnOyinbo(args, cwd) {
   return new Promise((resolve) => {
-    const proc = spawn('node', [INDEX_JS, ...args], { cwd, timeout: 3000 });
+    const proc = spawn(process.execPath, [INDEX_JS, ...args], { cwd });
     let stdout = '';
     let stderr = '';
     
@@ -32,7 +32,9 @@ function spawnOyinbo(args, cwd) {
     });
     
     // Kill after 2 seconds
-    setTimeout(() => proc.kill(), 2000);
+    setTimeout(() => {
+      proc.kill();
+    }, 2000);
     
     proc.on('close', (code) => {
       resolve({ stdout, stderr, exitCode: code || 0 });
@@ -64,8 +66,10 @@ test('CLI integration', async (t) => {
   });
   
   await t.test('accepts custom port', async () => {
-    const result = await spawnOyinbo(['--port=58765'], tmpDir);
-    assert(result.stdout.includes('http://localhost:58765'), 'Should use custom port');
+    // Use a random high port to avoid conflicts
+    const testPort = 40000 + Math.floor(Math.random() * 10000);
+    const result = await spawnOyinbo([`--port=${testPort}`], tmpDir);
+    assert(result.stdout.includes(`http://localhost:${testPort}`), `Should use custom port ${testPort}`);
   });
   
   await t.test('shows help message', async () => {

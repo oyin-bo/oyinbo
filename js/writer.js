@@ -1,6 +1,7 @@
 // @ts-check
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { hasFileBeenSeen } from './watcher.js';
+import { dirname } from 'node:path';
 
 const FOOTER = '----------------------------------------------------------------------\n> Write code in a fenced JS block below to execute against this page.\n\n';
 
@@ -61,6 +62,11 @@ export function writeDiagnostic(file, message) {
  */
 export function writeTestProgress(file, markdown) {
   if (!existsSync(file)) {
+    // Create parent directory if it doesn't exist
+    const dir = dirname(file);
+    if (dir && !existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
     const content = `${markdown}\n\n${FOOTER}`;
     writeFileSync(file, content, 'utf8');
     return;

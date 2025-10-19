@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test Runner Demo</title>
+</head>
+<body>
+  <h1>Test Runner Demo</h1>
+  <p>This page demonstrates the Oyinbo test runner running browser-compatible tests.</p>
+  
+  <button id="runInlineTests" onclick="runInlineTests()">Run Inline Tests</button>
+  <button id="runFileTests" onclick="runFileTests()">Run File-Based Tests</button>
+  <pre id="output"></pre>
+  
+  <script type="module">
+    // Create inline browser-friendly tests
+    window.createInlineTests = async () => {
+      const { test, describe, it } = await import('node:test');
+      const assert = (await import('node:assert')).default;
+      
+      describe('Browser Math Tests', () => {
+        test('addition works', () => {
+          assert.strictEqual(1 + 1, 2);
+        });
+        
+        test('multiplication works', () => {
+          assert.strictEqual(2 * 3, 6);
+        });
+        
+        it('division works', () => {
+          assert.strictEqual(10 / 2, 5);
+        });
+      });
+      
+      describe('Browser String Tests', () => {
+        test('string concatenation', () => {
+          assert.strictEqual('Hello' + ' ' + 'World', 'Hello World');
+        });
+        
+        test('string length', () => {
+          assert.strictEqual('test'.length, 4);
+        });
+      });
+      
+      test('async test example', async () => {
+        const result = await Promise.resolve(42);
+        assert.strictEqual(result, 42);
+      });
+      
+      test('DOM is accessible', () => {
+        assert.ok(typeof document !== 'undefined');
+        assert.ok(document.title === 'Test Runner Demo');
+      });
+    };
+    
+    window.runInlineTests = async () => {
+      const output = document.getElementById('output');
+      output.textContent = 'Setting up inline tests...\n';
+      
+      try {
+        // Import test runner
+        const { run, oyinboRunTests } = await import('node:test');
+        output.textContent += 'Test runner imported successfully\n';
+        
+        // Create inline tests
+        await window.createInlineTests();
+        output.textContent += 'Inline tests registered\n';
+        
+        // Run tests without file discovery (direct execution)
+        output.textContent += '\nRunning tests...\n';
+        const result = await oyinboRunTests({ files: [] });
+        
+        output.textContent += '\n=== TEST RESULTS ===\n';
+        output.textContent += `Total: ${result.total}\n`;
+        output.textContent += `Passed: ${result.passed}\n`;
+        output.textContent += `Failed: ${result.failed}\n`;
+        output.textContent += `Skipped: ${result.skipped}\n`;
+        output.textContent += `Duration: ${result.duration}ms\n\n`;
+        
+        // Show test details
+        result.tests.forEach(t => {
+          const status = t.passed ? '✓' : (t.skipped ? '○' : '✗');
+          const suite = t.suite ? `${t.suite} > ` : '';
+          output.textContent += `${status} ${suite}${t.name} (${t.duration}ms)\n`;
+          if (t.error) {
+            output.textContent += `  Error: ${t.error}\n`;
+          }
+        });
+        
+      } catch (err) {
+        output.textContent += '\nError: ' + err.message + '\n' + err.stack;
+      }
+    };
+    
+    window.runFileTests = async () => {
+      const output = document.getElementById('output');
+      output.textContent = 'Running file-based tests...\n';
+      
+      try {
+        const { run } = await import('node:test');
+        output.textContent += 'Test runner imported successfully\n';
+        
+        // Run the browser-friendly demo test file
+        output.textContent += 'Running examples-browser-demo.test.js...\n';
+        const result = await run({ 
+          files: ['/examples-browser-demo.test.js'] 
+        });
+        
+        output.textContent += '\n=== TEST RESULTS ===\n';
+        output.textContent += `Total: ${result.total}\n`;
+        output.textContent += `Passed: ${result.passed}\n`;
+        output.textContent += `Failed: ${result.failed}\n`;
+        output.textContent += `Skipped: ${result.skipped}\n`;
+        output.textContent += `Duration: ${result.duration}ms\n\n`;
+        
+        // Show test details
+        result.tests.forEach(t => {
+          const status = t.passed ? '✓' : (t.skipped ? '○' : '✗');
+          const suite = t.suite ? `${t.suite} > ` : '';
+          output.textContent += `${status} ${suite}${t.name} (${t.duration}ms)\n`;
+          if (t.error) {
+            output.textContent += `  Error: ${t.error.substring(0, 200)}\n`;
+          }
+        });
+      } catch (err) {
+        output.textContent += '\nError: ' + err.message + '\n' + err.stack;
+      }
+    };
+  </script>
+</body>
+</html>

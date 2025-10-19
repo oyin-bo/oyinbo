@@ -225,14 +225,26 @@ export async function run(options = {}) {
   const realmId = getRealmId();
   
   try {
-    // Discover test files from server
+    // Determine if files are explicit paths or patterns
     let testFiles = [];
+    const explicitFiles = [];
+    const patterns = [];
     
-    if (typeof fetch !== 'undefined') {
+    const fileList = Array.isArray(files) ? files : [files];
+    for (const file of fileList) {
+      if (file.includes('*')) {
+        patterns.push(file);
+      } else {
+        explicitFiles.push(file);
+      }
+    }
+    
+    // If we have patterns, discover files from server
+    if (patterns.length > 0 && typeof fetch !== 'undefined') {
       const response = await fetch('/oyinbo/discover-tests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files })
+        body: JSON.stringify({ files: patterns })
       });
       
       if (!response.ok) {
@@ -243,10 +255,10 @@ export async function run(options = {}) {
       testFiles = data.files || [];
       
       console.log(`[test-runner] discovered ${testFiles.length} test files`);
-    } else {
-      // Fallback if fetch not available (shouldn't happen in browser)
-      testFiles = Array.isArray(files) ? files : [files];
     }
+    
+    // Add explicit files
+    testFiles = [...testFiles, ...explicitFiles];
     
     if (testFiles.length === 0) {
       console.warn('[test-runner] no test files found');

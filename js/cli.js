@@ -16,7 +16,7 @@ const __dirname = dirname(__filename);
  */
 function parseArgs() {
   const args = process.argv.slice(2);
-  let root = process.cwd();
+  let root = null;
   let port = null;
   let help = false;
   let version = false;
@@ -41,6 +41,11 @@ function parseArgs() {
     } else if (arg.startsWith('--port=')) {
       port = Number(arg.slice(7));
     }
+  }
+  
+  // If no root specified, use cwd
+  if (root === null) {
+    root = process.cwd();
   }
 
   return { root, port, help, version };

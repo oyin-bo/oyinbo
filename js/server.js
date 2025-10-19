@@ -25,79 +25,89 @@ const OYINBO_MODULES = {
   '/oyinbo/worker-bootstrap.js': workerBootstrapModule
 };
 
-/** @param {string} root @param {number} port */
+/** 
+ * @param {string} root 
+ * @param {number} port 
+ * @returns {Promise<void>}
+ */
 export function start(root, port) {
-  const server = createServer((req, res) => {
-    const url = new URL(req.url || '/', `http://${req.headers.host}`);
-    
-    // Polling endpoints
-    if (url.pathname === '/oyinbo') {
-      if (req.method === 'GET') return handlePoll(root, url, res);
-      if (req.method === 'POST') return handleResult(url, req, res);
-    }
-    
-    // Oyinbo modules (test-runner.js, assert.js)
-    if (url.pathname in OYINBO_MODULES) {
-      console.log(`[oyinbo] serving module: ${url.pathname}`);
-      return res.writeHead(200, { 'Content-Type': MIME['.js'] })
-        .end(OYINBO_MODULES[url.pathname]);
-    }
-    
-    // Test discovery endpoint
-    if (url.pathname === '/oyinbo/discover-tests' && req.method === 'POST') {
-      return handleTestDiscovery(root, req, res);
-    }
-    
-    // Test progress streaming endpoint
-    if (url.pathname === '/oyinbo/test-progress' && req.method === 'POST') {
-      return handleTestProgress(req, res);
-    }
-    
-    // File serving with import map handling
-    let path = url.pathname === '/' || url.pathname.endsWith('/') 
-      ? url.pathname + (url.pathname === '/' ? 'index.html' : 'index.html')
-      : url.pathname;
-    
-    const file = join(root, path);
-    if (!existsSync(file)) {
-      console.log(`[oyinbo] 404: ${url.pathname}`);
-      return res.writeHead(404).end('Not found');
-    }
-    
-    // HTML files: inject/merge import maps and client script
-    if (extname(file) === '.html') {
-      const html = readFileSync(file, 'utf8');
-      const modified = processImportMapHTML(html, root);
-      const withClient = injectClientScript(modified);
-      console.log(`[oyinbo] serving HTML with import map injected: ${path}`);
-      return res.writeHead(200, { 'Content-Type': MIME['.html'] })
-        .end(withClient);
-    }
-    
-    // JSON files: check if import map, merge if yes
-    if (extname(file) === '.json') {
-      const content = readFileSync(file, 'utf8');
-      try {
-        const json = JSON.parse(content);
-        if (json.imports || json.scopes) {
-          // It's an import map - merge oyinbo mappings
-          const merged = mergeImportMaps(json);
-          return res.writeHead(200, { 'Content-Type': MIME['.json'] })
-            .end(JSON.stringify(merged));
-        }
-      } catch (e) {
-        // Not JSON or invalid - serve as-is
+  return new Promise((resolve, reject) => {
+    const server = createServer((req, res) => {
+      const url = new URL(req.url || '/', `http://${req.headers.host}`);
+      
+      // Polling endpoints
+      if (url.pathname === '/oyinbo') {
+        if (req.method === 'GET') return handlePoll(root, url, res);
+        if (req.method === 'POST') return handleResult(url, req, res);
       }
-      return res.writeHead(200, { 'Content-Type': MIME['.json'] })
-        .end(content);
-    }
+      
+      // Oyinbo modules (test-runner.js, assert.js)
+      if (url.pathname in OYINBO_MODULES) {
+        console.log(`[oyinbo] serving module: ${url.pathname}`);
+        return res.writeHead(200, { 'Content-Type': MIME['.js'] })
+          .end(OYINBO_MODULES[url.pathname]);
+      }
+      
+      // Test discovery endpoint
+      if (url.pathname === '/oyinbo/discover-tests' && req.method === 'POST') {
+        return handleTestDiscovery(root, req, res);
+      }
+      
+      // Test progress streaming endpoint
+      if (url.pathname === '/oyinbo/test-progress' && req.method === 'POST') {
+        return handleTestProgress(req, res);
+      }
+      
+      // File serving with import map handling
+      let path = url.pathname === '/' || url.pathname.endsWith('/') 
+        ? url.pathname + (url.pathname === '/' ? 'index.html' : 'index.html')
+        : url.pathname;
+      
+      const file = join(root, path);
+      if (!existsSync(file)) {
+        console.log(`[oyinbo] 404: ${url.pathname}`);
+        return res.writeHead(404).end('Not found');
+      }
+      
+      // HTML files: inject/merge import maps and client script
+      if (extname(file) === '.html') {
+        const html = readFileSync(file, 'utf8');
+        const modified = processImportMapHTML(html, root);
+        const withClient = injectClientScript(modified);
+        console.log(`[oyinbo] serving HTML with import map injected: ${path}`);
+        return res.writeHead(200, { 'Content-Type': MIME['.html'] })
+          .end(withClient);
+      }
+      
+      // JSON files: check if import map, merge if yes
+      if (extname(file) === '.json') {
+        const content = readFileSync(file, 'utf8');
+        try {
+          const json = JSON.parse(content);
+          if (json.imports || json.scopes) {
+            // It's an import map - merge oyinbo mappings
+            const merged = mergeImportMaps(json);
+            return res.writeHead(200, { 'Content-Type': MIME['.json'] })
+              .end(JSON.stringify(merged));
+          }
+        } catch (e) {
+          // Not JSON or invalid - serve as-is
+        }
+        return res.writeHead(200, { 'Content-Type': MIME['.json'] })
+          .end(content);
+      }
+      
+      // Everything else: stream as-is
+      res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
+      createReadStream(file).pipe(res);
+    });
     
-    // Everything else: stream as-is
-    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
-    createReadStream(file).pipe(res);
+    server.on('error', reject);
+    server.listen(port, () => {
+      server.removeListener('error', reject);
+      resolve();
+    });
   });
-  
-  server.listen(port, () => console.log(`[oyinbo] http://localhost:${port}/`));
 }
 
 /**

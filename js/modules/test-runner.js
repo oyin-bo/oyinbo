@@ -362,6 +362,11 @@ export const assert = {
       throw new AssertionError(message || 'Objects not deeply equal', actual, expected);
     }
   },
+  deepStrictEqual: (/** @type {any} */ actual, /** @type {any} */ expected, /** @type {any} */ message) => {
+    if (!deepStrictEqualImpl(actual, expected)) {
+      throw new AssertionError(message || 'Objects not deeply equal', actual, expected);
+    }
+  },
   throws: (/** @type {any} */ fn, /** @type {any} */ errorValidator, /** @type {any} */ message) => {
     let threw = false;
     let caughtError = null;
@@ -470,6 +475,60 @@ function deepEqualImpl(a, b) {
     for (const key of keysA) {
       if (!keysB.includes(key)) return false;
       if (!deepEqualImpl(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  
+  // Primitives that didn't match in strict equality
+  return false;
+}
+
+/**
+ * Deep strict equality check implementation
+ * Uses strict (===) equality for primitives
+ * @param {any} a
+ * @param {any} b
+ * @returns {boolean}
+ */
+function deepStrictEqualImpl(a, b) {
+  // Strict equality check
+  if (a === b) return true;
+  
+  // Handle null/undefined with strict equality
+  if (a == null || b == null) return a === b;
+  
+  // Type check - strict comparison requires same type
+  if (typeof a !== typeof b) return false;
+  
+  // Handle dates
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime();
+  }
+  
+  // Handle regex
+  if (a instanceof RegExp && b instanceof RegExp) {
+    return a.source === b.source && a.flags === b.flags;
+  }
+  
+  // Handle arrays
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepStrictEqualImpl(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  
+  // Handle objects
+  if (typeof a === 'object' && typeof b === 'object') {
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    
+    if (keysA.length !== keysB.length) return false;
+    
+    for (const key of keysA) {
+      if (!keysB.includes(key)) return false;
+      if (!deepStrictEqualImpl(a[key], b[key])) return false;
     }
     return true;
   }

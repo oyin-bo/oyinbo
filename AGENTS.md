@@ -14,6 +14,7 @@ REPL must be used to validate important changes, and debug any issues. It's AI-f
 
 * REPL is always available by running the server (`npm start`) and editing files.
 * To restart the server, use `%%SHUTDOWN%%` as described in [Server control and debugging](docs/1.3-workers-and-test-runner.md#server-control-and-debugging).
+* Only debug.md in the root folder is authoritative registry. Only files linked in debug.md are accepted as live REPL sessions.
 * Refreshing a page can be achieved by REPL commands too!
 * Always verify the **execution timing IMMEDIATELY** when adding REPL command. It is critical and must not be skipped.
 * Running any commands except `npm start` and `npm test` is very expensive and must be avoided. Use file editing tools and these two commands. That includes `timeout` command too: **very** expensive.

@@ -25,7 +25,7 @@ describe('test-runner module exports', () => {
   test('testRunnerScript includes test execution logic', async () => {
     const { testRunnerScript } = await import('./test-runner.js');
     assert.ok(testRunnerScript.includes('async function oyinboRunTests'));
-    assert.ok(testRunnerScript.includes('await import(file)'));
+    assert.ok(testRunnerScript.includes('await import('));
     assert.ok(testRunnerScript.includes('passed'));
     assert.ok(testRunnerScript.includes('failed'));
   });

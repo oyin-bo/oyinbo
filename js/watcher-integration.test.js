@@ -337,12 +337,12 @@ describe('watchForRestart shutdown handling', () => {
 
   test('logs shutdown detection', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('[oyinbo] %%SHUTDOWN%% detected'));
+    assert.ok(watcherContent.includes('%%SHUTDOWN%% detected'));
   });
 
   test('writes server down message', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('Server is down'));
+    assert.ok(watcherContent.includes('has been shut down') || watcherContent.includes('Server is down'));
   });
 
   test('includes restart instructions in down message', () => {

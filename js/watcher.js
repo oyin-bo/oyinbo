@@ -85,11 +85,14 @@ export function watchForRestart(root) {
       const shutdownLine = lines.findIndex(line => line.trim() === '%%SHUTDOWN%%');
       
       if (shutdownLine !== -1) {
-        console.log('[oyinbo] %%SHUTDOWN%% detected in debug.md - shutting down server...');
+        const shutdownRequestedAt = new Date();
+        console.log('[oyinbo] ' + shutdownRequestedAt.toLocaleTimeString() + ' %%SHUTDOWN%% detected in debug.md - shutting down server...');
         
-        // Remove the marker before shutting down
-        lines.splice(shutdownLine, 1);
-        writeFileSync(debugFile, lines.join('\n'), 'utf8');
+        // Update debug.md with server down message
+        const downMessage = `# Server has been shut down ${shutdownRequestedAt.toLocaleTimeString()}
+
+> The server has been shut down with an explicit command. Run \`npm start\` to restart it.`;
+        writeFileSync(debugFile, downMessage, 'utf8');
         
         // Clean shutdown
         console.log('[oyinbo] Server shutdown complete');

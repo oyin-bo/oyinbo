@@ -16,5 +16,3 @@ export function run() {
   server.start(ROOT, PORT);
   watcher.watchForRestart(ROOT);
 }
-
-run();

@@ -38,6 +38,7 @@ export function start(root, port) {
     
     // Oyinbo modules (test-runner.js, assert.js)
     if (url.pathname in OYINBO_MODULES) {
+      console.log(`[oyinbo] serving module: ${url.pathname}`);
       return res.writeHead(200, { 'Content-Type': MIME['.js'] })
         .end(OYINBO_MODULES[url.pathname]);
     }
@@ -48,13 +49,17 @@ export function start(root, port) {
       : url.pathname;
     
     const file = join(root, path);
-    if (!existsSync(file)) return res.writeHead(404).end('Not found');
+    if (!existsSync(file)) {
+      console.log(`[oyinbo] 404: ${url.pathname}`);
+      return res.writeHead(404).end('Not found');
+    }
     
     // HTML files: inject/merge import maps and client script
     if (extname(file) === '.html') {
       const html = readFileSync(file, 'utf8');
       const modified = processImportMapHTML(html, root);
       const withClient = injectClientScript(modified);
+      console.log(`[oyinbo] serving HTML with import map injected: ${path}`);
       return res.writeHead(200, { 'Content-Type': MIME['.html'] })
         .end(withClient);
     }
@@ -94,8 +99,7 @@ export function start(root, port) {
 function processImportMapHTML(html, root) {
   const oyinboMappings = {
     'node:test': '/oyinbo/test-runner.js',
-    'node:assert': '/oyinbo/assert.js',
-    'node:oyinbo/worker': '/oyinbo/worker-bootstrap.js'
+    'node:assert': '/oyinbo/assert.js'
   };
   
   // Check for inline import maps
@@ -115,7 +119,7 @@ function processImportMapHTML(html, root) {
         },
         ...(existing.scopes && { scopes: existing.scopes })
       };
-      const newMapScript = `<script type="importmap">${JSON.stringify(merged)}</script>`;
+      const newMapScript = `<script type="importmap">\n${JSON.stringify(merged, null, 2)}\n</script>`;
       return html.replace(match[0], newMapScript);
     } catch (e) {
       console.warn('[oyinbo] failed to parse inline import map:', e);
@@ -132,7 +136,7 @@ function processImportMapHTML(html, root) {
   }
   
   // No import map found - inject one
-  const newMap = `<script type="importmap">${JSON.stringify({imports: oyinboMappings})}</script>`;
+  const newMap = `<script type="importmap">\n${JSON.stringify({imports: oyinboMappings}, null, 2)}\n</script>`;
   return injectImportMap(html, newMap);
 }
 
@@ -226,9 +230,31 @@ function handleResult(url, req, res) {
   req.on('data', chunk => body += chunk);
   req.on('end', () => {
     try {
-      const j = job.get(url.searchParams.get('name') || '');
+      const payload = JSON.parse(body);
+      const name = url.searchParams.get('name') || '';
+      
+      // Handle worker timeout diagnostics
+      if (payload.type === 'worker-timeout') {
+        const page = registry.get(name);
+        if (page) {
+          writer.writeDiagnostic(
+            page.file,
+            `Worker unresponsive for ${payload.duration}ms, restarting...`
+          );
+        }
+        return res.writeHead(200).end('ok');
+      }
+      
+      // Handle worker init messages
+      if (payload.type === 'worker-init') {
+        // Just acknowledge, worker will poll normally
+        return res.writeHead(200).end('ok');
+      }
+      
+      // Handle normal job results
+      const j = job.get(name);
       if (j) {
-        writer.writeReply(j, JSON.parse(body));
+        writer.writeReply(j, payload);
         job.finish(j);
       }
       res.writeHead(200).end('ok');

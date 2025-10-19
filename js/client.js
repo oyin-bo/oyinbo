@@ -1,10 +1,24 @@
 // @ts-nocheck
 
-import { testRunnerScript } from './test-runner.js';
-
 /** Browser injector script */
 export async function clientMainFunction() {
   console.log('[oyinbo] injected');
+  
+  // Check import map support
+  if (!HTMLScriptElement.supports || !HTMLScriptElement.supports('importmap')) {
+    console.warn('[oyinbo] WARNING: Import maps not supported in this browser');
+  } else {
+    const importMaps = document.querySelectorAll('script[type="importmap"]');
+    console.log(`[oyinbo] Found ${importMaps.length} import map(s)`);
+    if (importMaps.length > 0) {
+      try {
+        const map = JSON.parse(importMaps[0].textContent);
+        console.log('[oyinbo] Import map:', map);
+      } catch(e) {
+        console.error('[oyinbo] Failed to parse import map:', e);
+      }
+    }
+  }
   
   let name = sessionStorage.getItem('oyinbo-name');
   if (!name) {
@@ -29,6 +43,9 @@ export async function clientMainFunction() {
   const WORKER_HEALTH_CHECK_INTERVAL = 10000;
   const WORKER_TIMEOUT = 20000;
   
+  // Sanitize name to match registry expectations
+  const sanitizeName = n => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  
   function createWorker() {
     if (workerRestartCount >= MAX_RESTART_ATTEMPTS) {
       console.warn('[oyinbo] max worker restart attempts reached');
@@ -36,7 +53,7 @@ export async function clientMainFunction() {
     }
     
     try {
-      const workerName = name + '-webworker';
+      const workerName = sanitizeName(name + '-webworker');
       
       // Create worker from served module (inherits import maps)
       const workerUrl = location.origin + '/oyinbo/worker-bootstrap.js';
@@ -73,7 +90,7 @@ export async function clientMainFunction() {
     
     if (timeSinceLastPong > WORKER_TIMEOUT) {
       console.warn('[oyinbo] worker unresponsive, restarting');
-      const workerName = name + '-webworker';
+      const workerName = sanitizeName(name + '-webworker');
       fetch('/oyinbo?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,8 +125,6 @@ export async function clientMainFunction() {
   window.addEventListener('error', e => errors.push(e.error?.stack || e.message || String(e)));
   window.addEventListener('unhandledrejection', e => errors.push(e.reason?.stack || String(e.reason)));
   
-  // Test runner will be injected here
-  
   while (true) {
     try {
       const res = await fetch(endpoint, { cache: 'no-cache' });
@@ -143,7 +158,4 @@ export async function clientMainFunction() {
   }
 }
 
-export const clientScript = 
-  '(' + testRunnerScript + ')();\n' +
-  'const testRunnerScript = ' + testRunnerScript + ';\n' +
-  '(' + clientMainFunction + ')();';
+export const clientScript = '(' + clientMainFunction + ')();';

@@ -21,10 +21,11 @@ test('workerScript includes heartbeat response', async () => {
   assert.ok(workerScript.includes('self.postMessage'));
 });
 
-test('workerScript includes test runner', async () => {
+test('workerScript does not inject test runner inline', async () => {
   const { workerScript } = await import('./worker.js');
-  assert.ok(workerScript.includes('globalThis.test'));
-  assert.ok(workerScript.includes('globalThis.oyinboRunTests'));
+  // Worker uses import maps, not globalThis injection
+  assert.ok(!workerScript.includes('globalThis.test'));
+  assert.ok(!workerScript.includes('globalThis.oyinboRunTests'));
 });
 
 test('workerScript includes polling loop', async () => {

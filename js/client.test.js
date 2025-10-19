@@ -8,11 +8,12 @@ test('clientScript exports valid string', async () => {
   assert.ok(clientScript.length > 100);
 });
 
-test('clientScript includes test runner injection', async () => {
+test('clientScript does not inject test runner inline', async () => {
   const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('globalThis.test'));
-  assert.ok(clientScript.includes('globalThis.oyinboRunTests'));
-  assert.ok(clientScript.includes('globalThis.assert'));
+  // Test runner should NOT be injected inline - it's available via import maps
+  assert.ok(!clientScript.includes('globalThis.test'));
+  assert.ok(!clientScript.includes('globalThis.oyinboRunTests'));
+  assert.ok(!clientScript.includes('globalThis.assert'));
 });
 
 test('clientScript includes worker creation logic', async () => {
@@ -42,4 +43,10 @@ test('clientScript includes main thread polling loop', async () => {
   assert.ok(clientScript.includes('while (true)'));
   assert.ok(clientScript.includes('fetch(endpoint'));
   assert.ok(clientScript.includes('AsyncFunction'));
+});
+
+test('clientScript includes name sanitization for workers', async () => {
+  const { clientScript } = await import('./client.js');
+  assert.ok(clientScript.includes('sanitizeName'));
+  assert.ok(clientScript.includes('toLowerCase'));
 });

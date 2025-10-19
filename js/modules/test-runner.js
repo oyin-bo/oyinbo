@@ -23,8 +23,12 @@ function getTestRegistry(/** @type {string} */ realmId) {
 
 // Get realm ID from URL or sessionStorage
 function getRealmId() {
-  if (typeof window !== 'undefined') {
-    return sessionStorage.getItem('oyinbo-name') || 'main';
+  try {
+    if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem('oyinbo-name') || 'main';
+    }
+  } catch (e) {
+    // sessionStorage might not be accessible
   }
   if (typeof self !== 'undefined' && self.name) {
     return self.name;
@@ -125,9 +129,24 @@ export async function oyinboRunTests(options = {}) {
       }
     }
     
+    // Check if there are any 'only' tests
+    const hasOnly = reg.tests.some(t => t.only);
+    
     // Execute tests
     for (const testCase of reg.tests) {
       results.total++;
+      
+      // Skip tests if there are 'only' tests and this isn't one
+      if (hasOnly && !testCase.only) {
+        results.skipped++;
+        results.tests.push({
+          name: testCase.name,
+          suite: testCase.suite,
+          skipped: true,
+          duration: 0
+        });
+        continue;
+      }
       
       if (testCase.skip) {
         results.skipped++;
@@ -183,6 +202,10 @@ export async function oyinboRunTests(options = {}) {
   
   results.duration = Date.now() - startTime;
   
+  // Clear test registry after run
+  reg.tests.length = 0;
+  reg.currentSuite = null;
+  
   // Make results available globally for REPL capture
   const g = /** @type {any} */ (globalThis);
   if (typeof globalThis !== 'undefined') {
@@ -224,24 +247,125 @@ export const assert = {
     if (actual === expected) throw new AssertionError(message || 'Values should not be strictly equal', actual, expected);
   },
   deepEqual: (/** @type {any} */ actual, /** @type {any} */ expected, /** @type {any} */ message) => {
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    if (!deepEqualImpl(actual, expected)) {
       throw new AssertionError(message || 'Objects not deeply equal', actual, expected);
     }
   },
-  throws: (/** @type {any} */ fn, /** @type {any} */ error, /** @type {any} */ message) => {
+  throws: (/** @type {any} */ fn, /** @type {any} */ errorValidator, /** @type {any} */ message) => {
     let threw = false;
-    try { fn(); } catch (e) { threw = true; }
+    let caughtError = null;
+    try { fn(); } catch (e) { threw = true; caughtError = e; }
     if (!threw) throw new AssertionError(message || 'Function did not throw', null, 'error');
+    
+    // Validate error if validator provided
+    if (errorValidator) {
+      if (typeof errorValidator === 'function') {
+        // Constructor check
+        if (!(caughtError instanceof errorValidator)) {
+          throw new AssertionError(
+            message || `Expected error to be instance of ${errorValidator.name}`,
+            caughtError,
+            errorValidator
+          );
+        }
+      } else if (errorValidator instanceof RegExp) {
+        // Regex check on message
+        if (!errorValidator.test(caughtError?.message || String(caughtError))) {
+          throw new AssertionError(
+            message || `Expected error message to match ${errorValidator}`,
+            caughtError?.message,
+            errorValidator
+          );
+        }
+      }
+    }
   },
-  rejects: async (/** @type {any} */ fn, /** @type {any} */ error, /** @type {any} */ message) => {
+  rejects: async (/** @type {any} */ fn, /** @type {any} */ errorValidator, /** @type {any} */ message) => {
     let rejected = false;
-    try { await fn(); } catch (e) { rejected = true; }
+    let caughtError = null;
+    try { await fn(); } catch (e) { rejected = true; caughtError = e; }
     if (!rejected) throw new AssertionError(message || 'Promise did not reject', null, 'rejection');
+    
+    // Validate error if validator provided
+    if (errorValidator) {
+      if (typeof errorValidator === 'function') {
+        // Constructor check
+        if (!(caughtError instanceof errorValidator)) {
+          throw new AssertionError(
+            message || `Expected rejection to be instance of ${errorValidator.name}`,
+            caughtError,
+            errorValidator
+          );
+        }
+      } else if (errorValidator instanceof RegExp) {
+        // Regex check on message
+        if (!errorValidator.test(caughtError?.message || String(caughtError))) {
+          throw new AssertionError(
+            message || `Expected rejection message to match ${errorValidator}`,
+            caughtError?.message,
+            errorValidator
+          );
+        }
+      }
+    }
   },
   fail: (/** @type {any} */ message) => {
     throw new AssertionError(message || 'Explicit fail', undefined, undefined);
   }
 };
+
+/**
+ * Deep equality check implementation
+ * @param {any} a
+ * @param {any} b
+ * @returns {boolean}
+ */
+function deepEqualImpl(a, b) {
+  // Strict equality check
+  if (a === b) return true;
+  
+  // Handle null/undefined
+  if (a == null || b == null) return a === b;
+  
+  // Type check
+  if (typeof a !== typeof b) return false;
+  
+  // Handle dates
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime();
+  }
+  
+  // Handle regex
+  if (a instanceof RegExp && b instanceof RegExp) {
+    return a.source === b.source && a.flags === b.flags;
+  }
+  
+  // Handle arrays
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqualImpl(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  
+  // Handle objects
+  if (typeof a === 'object' && typeof b === 'object') {
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    
+    if (keysA.length !== keysB.length) return false;
+    
+    for (const key of keysA) {
+      if (!keysB.includes(key)) return false;
+      if (!deepEqualImpl(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  
+  // Primitives that didn't match in strict equality
+  return false;
+}
 
 // Default export for assert module mapping
 export default assert;

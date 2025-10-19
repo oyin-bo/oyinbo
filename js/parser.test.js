@@ -14,7 +14,7 @@ test('parseRequest extracts code from footer-based request with agent header', (
   
   const result = parseRequest(input, 'test-page');
   
-  assert.strictEqual(result.code, 'console.log("hello")\n');
+  assert.strictEqual(result.code, 'console.log("hello")');
 });
 
 test('parseRequest extracts agent from header', () => {
@@ -183,7 +183,7 @@ test('parseRequest accepts fence with "javascript" language tag', () => {
   
   const result = parseRequest(input, 'test-page');
   
-  assert.strictEqual(result.code, 'const x = 1;\n');
+  assert.strictEqual(result.code, 'const x = 1;');
 });
 
 test('parseRequest accepts fence with no language tag', () => {
@@ -196,7 +196,7 @@ test('parseRequest accepts fence with no language tag', () => {
   
   const result = parseRequest(input, 'test-page');
   
-  assert.strictEqual(result.code, 'const x = 1;\n');
+  assert.strictEqual(result.code, 'const x = 1;');
 });
 
 test('parseRequest extracts last fenced block when no footer', () => {
@@ -212,7 +212,7 @@ test('parseRequest extracts last fenced block when no footer', () => {
   
   const result = parseRequest(input, 'test-page');
   
-  assert.strictEqual(result.code, 'second\n');
+  assert.strictEqual(result.code, 'second');
 });
 
 test('parseRequest sets hasFooter false for no-footer request', () => {
@@ -275,7 +275,7 @@ test('parseRequest handles multiline code correctly', () => {
   
   const result = parseRequest(input, 'test-page');
   
-  assert.strictEqual(result.code, 'function test() {\n  return 42;\n}\n');
+  assert.strictEqual(result.code, 'function test() {\n  return 42;\n}');
 });
 
 test('parseRequest preserves whitespace in code', () => {
@@ -288,5 +288,5 @@ test('parseRequest preserves whitespace in code', () => {
   
   const result = parseRequest(input, 'test-page');
   
-  assert.strictEqual(result.code, '  indented  \n');
+  assert.strictEqual(result.code, '  indented  ');
 });

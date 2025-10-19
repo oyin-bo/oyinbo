@@ -25,11 +25,12 @@ export function parseRequest(text, pageName) {
     const codeChunk = lines.slice(footerIdx + 1 + (headerMatch ? 1 : 0)).join('\n');
     const codeMatch = /```(?:\s*(?:js|javascript))?\s*\n([\s\S]*?)```/i.exec(codeChunk);
     if (!codeMatch?.[1]?.trim()) return null;
+    const code = codeMatch[1].endsWith('\n') ? codeMatch[1].slice(0, -1) : codeMatch[1];
     return { 
       agent: headerMatch?.[1] || 'agent',
       target: headerMatch?.[2] || pageName,
       time: headerMatch?.[3] || '',
-      code: codeMatch[1],
+      code: code,
       hasFooter: true 
     };
   }
@@ -51,5 +52,6 @@ export function parseRequest(text, pageName) {
       return null;
   }
 
-  return { agent: 'agent', target: pageName, time: '', code: lastMatch.code, hasFooter: false };
+  const code = lastMatch.code.endsWith('\n') ? lastMatch.code.slice(0, -1) : lastMatch.code;
+  return { agent: 'agent', target: pageName, time: '', code: code, hasFooter: false };
 }

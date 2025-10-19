@@ -1,6 +1,7 @@
 // @ts-check
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { hasFileBeenSeen } from './watcher.js';
+import { dirname } from 'node:path';
 
 const FOOTER = '----------------------------------------------------------------------\n> Write code in a fenced JS block below to execute against this page.\n\n';
 
@@ -47,6 +48,37 @@ export function writeDiagnostic(file, message) {
     '```Text',
     message,
     '```',
+    '',
+    FOOTER
+  ].join('\n');
+  
+  writeFileSync(file, output, 'utf8');
+}
+
+/**
+ * Write test progress markdown to a page's chat log
+ * @param {string} file - Path to the page's chat file
+ * @param {string} markdown - Test progress markdown
+ */
+export function writeTestProgress(file, markdown) {
+  if (!existsSync(file)) {
+    // Create parent directory if it doesn't exist
+    const dir = dirname(file);
+    if (dir && !existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const content = `${markdown}\n\n${FOOTER}`;
+    writeFileSync(file, content, 'utf8');
+    return;
+  }
+  
+  const lines = readFileSync(file, 'utf8').split('\n');
+  const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
+  
+  const output = [
+    ...lines.slice(0, footerIdx),
+    '',
+    markdown,
     '',
     FOOTER
   ].join('\n');

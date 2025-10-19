@@ -1,7 +1,7 @@
 // @ts-check
 import { createServer } from 'node:http';
-import { readFileSync, createReadStream, existsSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { readFileSync, createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { join, extname, relative, sep, resolve, normalize } from 'node:path';
 import { URL } from 'node:url';
 import * as registry from './registry.js';
 import * as job from './job.js';
@@ -41,6 +41,16 @@ export function start(root, port) {
       console.log(`[oyinbo] serving module: ${url.pathname}`);
       return res.writeHead(200, { 'Content-Type': MIME['.js'] })
         .end(OYINBO_MODULES[url.pathname]);
+    }
+    
+    // Test discovery endpoint
+    if (url.pathname === '/oyinbo/discover-tests' && req.method === 'POST') {
+      return handleTestDiscovery(root, req, res);
+    }
+    
+    // Test progress streaming endpoint
+    if (url.pathname === '/oyinbo/test-progress' && req.method === 'POST') {
+      return handleTestProgress(req, res);
     }
     
     // File serving with import map handling
@@ -263,4 +273,225 @@ function handleResult(url, req, res) {
       res.writeHead(500).end('error');
     }
   });
+}
+
+/**
+ * Discover test files matching patterns
+ * @param {string} root
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ */
+function handleTestDiscovery(root, req, res) {
+  let body = '';
+  req.setEncoding('utf8');
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const payload = JSON.parse(body);
+      const patterns = Array.isArray(payload.files) ? payload.files : [payload.files || '**/*.test.js'];
+      const cwd = payload.cwd || root;
+      const exclude = payload.exclude || ['node_modules/**', '.git/**', 'dist/**', 'build/**'];
+      
+      console.log('[test-discovery] patterns:', patterns, 'cwd:', cwd);
+      
+      const discovered = discoverTestFiles(root, cwd, patterns, exclude);
+      const urls = discovered.map(filePath => {
+        const rel = relative(root, filePath);
+        return '/' + rel.split(sep).join('/');
+      });
+      
+      console.log('[test-discovery] found', urls.length, 'test files');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ files: urls }));
+    } catch (err) {
+      console.error('[test-discovery] error:', err);
+      res.writeHead(500).end(JSON.stringify({ error: String(err) }));
+    }
+  });
+}
+
+/**
+ * Handle test progress streaming
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ */
+function handleTestProgress(req, res) {
+  let body = '';
+  req.setEncoding('utf8');
+  req.on('data', chunk => body += chunk);
+  req.on('end', () => {
+    try {
+      const payload = JSON.parse(body);
+      const realmName = payload.realmName || 'unknown';
+      const page = registry.get(realmName);
+      
+      if (!page) {
+        console.warn('[test-progress] unknown realm:', realmName);
+        return res.writeHead(404).end('realm not found');
+      }
+      
+      // Format test progress as markdown
+      const markdown = formatTestProgress(payload);
+      
+      // Write to realm's debug log
+      writer.writeTestProgress(page.file, markdown);
+      
+      console.log('[test-progress]', realmName, ':', payload.totals?.total || 0, 'tests');
+      res.writeHead(200).end('ok');
+    } catch (err) {
+      console.error('[test-progress] error:', err);
+      res.writeHead(500).end('error');
+    }
+  });
+}
+
+/**
+ * Discover test files matching patterns with validation
+ * @param {string} root - document root (security boundary)
+ * @param {string} cwd - current working directory for pattern matching
+ * @param {string[]} patterns - glob patterns
+ * @param {string[]} exclude - exclusion patterns
+ * @returns {string[]} - absolute file paths
+ */
+function discoverTestFiles(root, cwd, patterns, exclude) {
+  const rootAbs = resolve(root);
+  const cwdAbs = resolve(cwd);
+  
+  // Security: ensure cwd is within root
+  if (!cwdAbs.startsWith(rootAbs)) {
+    console.warn('[test-discovery] cwd outside root:', cwdAbs, 'vs', rootAbs);
+    return [];
+  }
+  
+  const discovered = new Set();
+  
+  for (const pattern of patterns) {
+    const files = findTestFiles(cwdAbs, pattern, exclude);
+    for (const file of files) {
+      const abs = resolve(file);
+      // Security: validate file is within root
+      if (abs.startsWith(rootAbs)) {
+        discovered.add(abs);
+      }
+    }
+  }
+  
+  return Array.from(discovered).sort();
+}
+
+/**
+ * Find test files matching a pattern
+ * @param {string} dir - directory to search
+ * @param {string} pattern - pattern like "**\/*.test.js" or "./tests/foo.test.js"
+ * @param {string[]} exclude - exclusion patterns
+ * @returns {string[]} - absolute file paths
+ */
+function findTestFiles(dir, pattern, exclude) {
+  const results = [];
+  
+  // If pattern is an explicit file path, return it directly
+  if (pattern.includes('.test.js') && !pattern.includes('*')) {
+    const explicit = resolve(dir, pattern);
+    if (existsSync(explicit) && isTestFile(explicit)) {
+      return [explicit];
+    }
+    return [];
+  }
+  
+  // Otherwise do recursive search for test files
+  function scan(/** @type {string} */ currentDir) {
+    try {
+      const entries = readdirSync(currentDir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = join(currentDir, entry.name);
+        const relPath = relative(dir, fullPath);
+        
+        // Check exclusions
+        if (exclude.some(ex => matchPattern(relPath, ex))) {
+          continue;
+        }
+        
+        if (entry.isDirectory()) {
+          scan(fullPath);
+        } else if (entry.isFile() && isTestFile(entry.name)) {
+          // Match test file patterns
+          if (pattern === '**/*.test.js' || pattern.includes('**/*')) {
+            results.push(fullPath);
+          } else if (matchPattern(relPath, pattern)) {
+            results.push(fullPath);
+          }
+        }
+      }
+    } catch (err) {
+      // Ignore permission errors etc.
+    }
+  }
+  
+  scan(dir);
+  return results;
+}
+
+/**
+ * Check if filename matches test file conventions
+ * @param {string} filename
+ * @returns {boolean}
+ */
+function isTestFile(filename) {
+  return filename.endsWith('.test.js') || 
+         filename.endsWith('.test.mjs') || 
+         filename.endsWith('.test.cjs') ||
+         filename.startsWith('test-') && (filename.endsWith('.js') || filename.endsWith('.mjs'));
+}
+
+/**
+ * Simple pattern matching (supports * and **)
+ * @param {string} path
+ * @param {string} pattern
+ * @returns {boolean}
+ */
+function matchPattern(path, pattern) {
+  // Convert pattern to regex
+  const regexStr = pattern
+    .split('/').map(part => {
+      if (part === '**') return '.*';
+      if (part === '*') return '[^/]*';
+      return part.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*');
+    }).join('/');
+  
+  const regex = new RegExp('^' + regexStr + '$');
+  return regex.test(path.split(sep).join('/'));
+}
+
+/**
+ * Format test progress as markdown
+ * @param {any} payload
+ * @returns {string}
+ */
+function formatTestProgress(payload) {
+  const { totals, duration, recentTests, complete } = payload;
+  const lines = [];
+  
+  if (complete) {
+    lines.push(`## Test Results: ${totals.pass} pass, ${totals.fail} fail, ${totals.skip} skip (${duration}ms)`);
+  } else {
+    lines.push(`## Test Progress: ${totals.pass}/${totals.total} pass, ${totals.fail} fail (${duration}ms)`);
+  }
+  lines.push('');
+  
+  if (recentTests && recentTests.length > 0) {
+    for (const test of recentTests) {
+      const status = test.status === 'pass' ? '✓' : test.status === 'fail' ? '✗' : '○';
+      const suite = test.suite ? `${test.suite} > ` : '';
+      lines.push(`${status} ${suite}${test.name} (${test.duration}ms)`);
+      
+      if (test.error) {
+        lines.push('  ```');
+        lines.push('  ' + test.error.replace(/\n/g, '\n  '));
+        lines.push('  ```');
+      }
+    }
+  }
+  
+  return lines.join('\n');
 }

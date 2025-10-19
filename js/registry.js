@@ -66,7 +66,8 @@ export function getOrCreate(root, name, url) {
     page = { name, url, file, state: 'idle', lastSeen: Date.now() };
     pages.set(name, page);
     
-    try { console.log(`  ${url} connected for ${relative(root, file).replace(/\\/g, '/')}`); } catch {}
+    const daebugReplFile = relative(root, file).replace(/\\/g, '/');
+    console.log(`   📃 ${daebugReplFile}  for ${url}`);
     updateMaster(root);
   }
   page.lastSeen = Date.now();

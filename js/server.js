@@ -103,7 +103,11 @@ export function start(root, port) {
     createReadStream(file).pipe(res);
   });
   
-  server.listen(port, () => console.log(`👾 http://localhost:${port}/`));
+  server.listen(port, () => console.log(
+    'serving  ' + root +
+    '  👉  http://localhost:' + port + '/\n' +
+    '============================================================================='
+  ));
 }
 
 /**

@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import * as registry from './registry.js';
 import * as server from './server.js';
 import * as watcher from './watcher.js';
+import pkg from '../package.json' with { type: 'json' };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -169,6 +170,8 @@ export async function run() {
     return;
   }
 
+  process.stdout.write(`👾Daebug v${pkg.version}`);
+
   // Determine port
   let finalPort;
   if (port !== null) {
@@ -180,7 +183,7 @@ export async function run() {
     finalPort = await findAvailablePort(root, derivedPort);
   }
 
-  console.log(`👾 serving ${root} on http://localhost:${finalPort}/`);
+  process.stdout.write(' ');
 
   registry.init(root);
   server.start(root, finalPort);

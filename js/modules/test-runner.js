@@ -36,7 +36,18 @@ function getRealmId() {
   return 'unknown';
 }
 
-const registry = getTestRegistry(getRealmId());
+const registry = /** @type {any} */ (getTestRegistry(getRealmId()));
+
+/** Format timestamp with milliseconds: HH:MM:SS.mmm */
+/** @param {number} ms */
+const fullTsFmt = ms => {
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  const ms3 = String(d.getMilliseconds()).padStart(3, '0');
+  return `${hh}:${mm}:${ss}.${ms3}`;
+};
 
 /**
  * Register a test
@@ -45,7 +56,7 @@ const registry = getTestRegistry(getRealmId());
  * @param {any} maybeFn
  */
 export function test(nameOrOptions, optionsOrFn, maybeFn) {
-  let name, options = {}, fn;
+  let name, options = /** @type {any} */ ({}), fn;
   if (typeof nameOrOptions === 'string') {
     name = nameOrOptions;
     if (typeof optionsOrFn === 'function') {
@@ -55,7 +66,7 @@ export function test(nameOrOptions, optionsOrFn, maybeFn) {
       fn = maybeFn;
     }
   } else {
-    options = nameOrOptions || {};
+    options = /** @type {any} */ (nameOrOptions || {});
     name = options.name || 'unnamed test';
     fn = optionsOrFn;
   }
@@ -92,8 +103,8 @@ export const it = test;
 
 /**
  * Run registered tests
- * @param {object} options
- * @returns {Promise<object>} results
+ * @param {any} options
+ * @returns {Promise<any>} results
  */
 export async function daebugRunTests(options = {}) {
   const files = options.files || [];
@@ -107,7 +118,7 @@ export async function daebugRunTests(options = {}) {
     skipped: 0,
     total: 0,
     duration: 0,
-    tests: []
+    tests: /** @type {any[]} */([])
   };
   
   const startTime = Date.now();
@@ -126,11 +137,14 @@ export async function daebugRunTests(options = {}) {
         resolvedFile += `?t=${Date.now()}`;
         await import(resolvedFile);
       } catch (err) {
+        const now = Date.now();
         results.tests.push({
           name: `Import: ${file}`,
           passed: false,
           error: (err && typeof err === 'object' && 'stack' in err) ? (err.stack || String(err)) : String(err),
-          duration: 0
+          duration: 0,
+          completedAt: now,
+          fullTs: fullTsFmt(now)
         });
         results.failed++;
         results.total++;
@@ -138,7 +152,7 @@ export async function daebugRunTests(options = {}) {
     }
     
     // Check if there are any 'only' tests
-    const hasOnly = reg.tests.some(t => t.only);
+  const hasOnly = reg.tests.some((/** @type {any} */ t) => t.only);
     
     // Execute tests
     for (const testCase of reg.tests) {
@@ -147,27 +161,34 @@ export async function daebugRunTests(options = {}) {
       // Skip tests if there are 'only' tests and this isn't one
       if (hasOnly && !testCase.only) {
         results.skipped++;
+        const now = Date.now();
         results.tests.push({
           name: testCase.name,
           suite: testCase.suite,
           skipped: true,
-          duration: 0
+          duration: 0,
+          completedAt: now,
+          fullTs: fullTsFmt(now)
         });
         continue;
       }
       
       if (testCase.skip) {
         results.skipped++;
+        const now = Date.now();
         results.tests.push({
           name: testCase.name,
           suite: testCase.suite,
           skipped: true,
-          duration: 0
+          duration: 0,
+          completedAt: now,
+          fullTs: fullTsFmt(now)
         });
         continue;
       }
       
       const testStart = Date.now();
+      /** @type {any} */
       const testResult = {
         name: testCase.name,
         suite: testCase.suite,
@@ -189,20 +210,27 @@ export async function daebugRunTests(options = {}) {
         testResult.passed = true;
         results.passed++;
       } catch (err) {
-        testResult.error = (err && typeof err === 'object' && 'stack' in err) ? (err.stack || String(err)) : String(err);
+        const _err = /** @type {any} */ (err);
+        testResult.error = (_err && typeof _err === 'object' && 'stack' in _err) ? (_err.stack || String(_err)) : String(_err);
         results.failed++;
       }
       
       testResult.duration = Date.now() - testStart;
+      const completed = Date.now();
+      testResult.completedAt = completed;
+      testResult.fullTs = fullTsFmt(completed);
       results.tests.push(testResult);
     }
     
   } catch (err) {
+    const now = Date.now();
     results.tests.push({
       name: 'Test Runner Error',
       passed: false,
       error: (err && typeof err === 'object' && 'stack' in err) ? (err.stack || String(err)) : String(err),
-      duration: 0
+      duration: 0,
+      completedAt: now,
+      fullTs: fullTsFmt(now)
     });
     results.failed++;
     results.total++;
@@ -229,7 +257,9 @@ export async function daebugRunTests(options = {}) {
  * @returns {Promise<object>}
  */
 export async function run(options = {}) {
-  const files = options.files || ['**/*.test.js'];
+  /** @type {any} */
+  const opt = options || {};
+  const files = opt.files || ['**/*.test.js'];
   const realmId = getRealmId();
   
   try {
@@ -312,13 +342,15 @@ export async function run(options = {}) {
         total: results.total
       },
       duration: results.duration,
-      allTests: results.tests.map(t => ({
-        name: t.name,
-        suite: t.suite,
-        status: t.skipped ? 'skip' : (t.passed ? 'pass' : 'fail'),
-        duration: t.duration,
-        error: t.error
-      }))
+      allTests: results.tests.map((/** @type {any} */ t) => ({
+          name: t.name,
+          suite: t.suite,
+          status: t.skipped ? 'skip' : (t.passed ? 'pass' : 'fail'),
+          duration: t.duration,
+          error: t.error,
+          fullTs: t.fullTs,
+          completedAt: t.completedAt
+        }))
     });
     
     return results;
@@ -377,9 +409,10 @@ export const assert = {
     
     // Validate error if validator provided
     if (errorValidator) {
+      const _caught = /** @type {any} */ (caughtError);
       if (typeof errorValidator === 'function') {
         // Constructor check
-        if (!(caughtError instanceof errorValidator)) {
+        if (!(_caught instanceof errorValidator)) {
           throw new AssertionError(
             message || `Expected error to be instance of ${errorValidator.name}`,
             caughtError,
@@ -388,10 +421,10 @@ export const assert = {
         }
       } else if (errorValidator instanceof RegExp) {
         // Regex check on message
-        if (!errorValidator.test(caughtError?.message || String(caughtError))) {
+        if (!errorValidator.test(_caught?.message || String(_caught))) {
           throw new AssertionError(
             message || `Expected error message to match ${errorValidator}`,
-            caughtError?.message,
+            _caught?.message,
             errorValidator
           );
         }
@@ -406,9 +439,10 @@ export const assert = {
     
     // Validate error if validator provided
     if (errorValidator) {
+      const _caught = /** @type {any} */ (caughtError);
       if (typeof errorValidator === 'function') {
         // Constructor check
-        if (!(caughtError instanceof errorValidator)) {
+        if (!(_caught instanceof errorValidator)) {
           throw new AssertionError(
             message || `Expected rejection to be instance of ${errorValidator.name}`,
             caughtError,
@@ -417,10 +451,10 @@ export const assert = {
         }
       } else if (errorValidator instanceof RegExp) {
         // Regex check on message
-        if (!errorValidator.test(caughtError?.message || String(caughtError))) {
+        if (!errorValidator.test(_caught?.message || String(_caught))) {
           throw new AssertionError(
             message || `Expected rejection message to match ${errorValidator}`,
-            caughtError?.message,
+            _caught?.message,
             errorValidator
           );
         }

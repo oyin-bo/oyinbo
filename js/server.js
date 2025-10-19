@@ -282,6 +282,15 @@ function handleResult(url, req, res) {
         return res.writeHead(200).end('ok');
       }
       
+      // Handle background event flush (orphaned events after job completion)
+      if (payload.type === 'background-flush') {
+        const page = registry.get(name);
+        if (page && payload.events && payload.events.length > 0) {
+          writer.writeBackgroundEvents(page.file, payload.events, payload.timestamp);
+        }
+        return res.writeHead(200).end('ok');
+      }
+      
       // Handle normal job results
       const j = job.get(name);
       if (j) {
@@ -512,7 +521,8 @@ function formatTestProgress(payload) {
     // Show failures first (most important)
     for (const test of failedTests) {
       const suite = test.suite ? `${test.suite} > ` : '';
-      lines.push(`✗ ${suite}${test.name} (${test.duration}ms)`);
+      const ts = test.fullTs || (test.completedAt ? writer.clockFmt(test.completedAt) : '');
+      lines.push(`✗ ${suite}${test.name} ${ts} (${test.duration}ms)`);
       
       if (test.error) {
         lines.push('  ```');
@@ -524,13 +534,15 @@ function formatTestProgress(payload) {
     // Show skipped tests
     for (const test of skippedTests) {
       const suite = test.suite ? `${test.suite} > ` : '';
-      lines.push(`○ ${suite}${test.name} (${test.duration}ms)`);
+      const ts = test.fullTs || (test.completedAt ? writer.clockFmt(test.completedAt) : '');
+      lines.push(`○ ${suite}${test.name} ${ts} (${test.duration}ms)`);
     }
     
     // Show passed tests
     for (const test of passedTests) {
       const suite = test.suite ? `${test.suite} > ` : '';
-      lines.push(`✓ ${suite}${test.name} (${test.duration}ms)`);
+      const ts = test.fullTs || (test.completedAt ? writer.clockFmt(test.completedAt) : '');
+      lines.push(`✓ ${suite}${test.name} ${ts} (${test.duration}ms)`);
     }
   }
   

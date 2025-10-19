@@ -130,6 +130,47 @@ export async function clientMainFunction() {
       .map(x => String(x).padStart(2, '0'))
       .join(':');
   };
+
+  // Background-only flush: debounced sending of accumulated events
+  let backgroundFlushTimer = null;
+  let lastFlushTime = 0;
+  const BACKGROUND_FLUSH_DEBOUNCE = 2000; // 2 seconds as per spec
+
+  const scheduleBackgroundFlush = () => {
+    const now = Date.now();
+    const timeSinceLastFlush = now - lastFlushTime;
+    if (timeSinceLastFlush >= BACKGROUND_FLUSH_DEBOUNCE) {
+      flushNow();
+      return;
+    }
+
+    if (!backgroundFlushTimer)
+      backgroundFlushTimer = setTimeout(flushNow, BACKGROUND_FLUSH_DEBOUNCE - timeSinceLastFlush);
+
+    async function flushNow() {
+      lastFlushTime = Date.now();
+      clearTimeout(backgroundFlushTimer);
+      backgroundFlushTimer = null;
+      if (backgroundEvents.length === 0) return;
+
+      const eventsToFlush = backgroundEvents.splice(0);
+
+      try {
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'background-flush',
+            events: eventsToFlush,
+            timestamp: formatTime()
+          })
+        });
+      } catch (err) {
+        // Restore events if send failed
+        backgroundEvents.unshift(...eventsToFlush);
+      }
+    }
+  };
   
   // Helper to serialize values for console output
   const serializeValue = (val, depth = 0) => {
@@ -158,26 +199,38 @@ export async function clientMainFunction() {
   
   // Capture global errors
   window.addEventListener('error', e => {
+    const now = new Date();
+    const timestamp = formatTime();
+    const ms = String(now.getMilliseconds()).padStart(3, '0');
+    const fullTimestamp = timestamp + '.' + ms;
+    
     backgroundEvents.push({
       type: 'error',
       source: 'window.onerror',
-      ts: formatTime(),
+      ts: timestamp,
+      fullTs: fullTimestamp,
       message: e.message || String(e),
       stack: e.error?.stack || ''
     });
+    scheduleBackgroundFlush();
   });
-  
+
   window.addEventListener('unhandledrejection', e => {
+    const now = new Date();
+    const timestamp = formatTime();
+    const ms = String(now.getMilliseconds()).padStart(3, '0');
+    const fullTimestamp = timestamp + '.' + ms;
+    
     backgroundEvents.push({
       type: 'error',
       source: 'unhandledrejection',
-      ts: formatTime(),
+      ts: timestamp,
+      fullTs: fullTimestamp,
       message: String(e.reason),
       stack: e.reason?.stack || ''
     });
-  });
-  
-  // Monkeypatch console methods
+    scheduleBackgroundFlush();
+  });  // Monkeypatch console methods
   const originalConsole = {
     log: console.log,
     info: console.info,
@@ -187,14 +240,31 @@ export async function clientMainFunction() {
   
   ['log', 'info', 'warn', 'error'].forEach(level => {
     console[level] = function(...args) {
+      // Capture stack trace and timestamp for caller location
+      const now = new Date();
+      const timestamp = formatTime();
+      const ms = String(now.getMilliseconds()).padStart(3, '0');
+      const fullTimestamp = timestamp + '.' + ms;
+      const stack = new Error().stack;
+      let caller = '';
+      if (stack) {
+        const lines = stack.split('\n');
+        // lines[2] is the actual caller (skip Error and this function)
+        if (lines[2]) {
+          caller = lines[2].trim() + ' ' + fullTimestamp;
+        }
+      }
+      
       // Capture to background events
       const message = args.map(arg => serializeValue(arg)).join(' ');
       backgroundEvents.push({
         type: 'console',
         level: level,
-        ts: formatTime(),
-        message: message
+        ts: timestamp,
+        message: message,
+        caller: caller
       });
+      scheduleBackgroundFlush();
       // Call original console method
       originalConsole[level].apply(console, args);
     };

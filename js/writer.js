@@ -86,6 +86,33 @@ export function writeTestProgress(file, markdown) {
   writeFileSync(file, output, 'utf8');
 }
 
+/**
+ * Write background events (orphaned events after job completion) to a page's chat log
+ * @param {string} file - Path to the page's chat file
+ * @param {Array<{type: string, level?: string, source?: string, ts: string, message: string, stack?: string, caller?: string}>} events - Background events
+ * @param {string} timestamp - Timestamp of flush
+ */
+export function writeBackgroundEvents(file, events, timestamp) {
+  if (!existsSync(file)) return; // No file yet, can't write background events
+  
+  const lines = readFileSync(file, 'utf8').split('\n');
+  const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
+  
+  const pageName = file.match(/([^/\\]+)\.md$/)?.[1] || 'page';
+  const blocks = events.map(formatBackgroundEvent);
+  
+  const output = [
+    ...lines.slice(0, footerIdx),
+    '',
+    `> **${pageName}** background at ${timestamp}`,
+    ...blocks,
+    '',
+    FOOTER
+  ].join('\n');
+  
+  writeFileSync(file, output, 'utf8');
+}
+
 // Export helper functions for testing
 export { clockFmt, durationFmt, findFooter, findLastFencedBlock, findAgentHeaderAbove, buildBlocks, formatBackgroundEvent };
 
@@ -125,12 +152,23 @@ const findAgentHeaderAbove = (lines, startIdx) => {
 
 /**
  * Format background event as a fenced block with specialized metadata
- * @param {{ type: string, level?: string, source?: string, ts: string, message: string, stack?: string }} event
+ * @param {{ type: string, level?: string, source?: string, ts: string, fullTs?: string, message: string, stack?: string, caller?: string }} event
  */
 const formatBackgroundEvent = event => {
   if (event.type === 'error') {
     const fenceType = event.source || 'Error';
-    const content = event.stack || event.message;
+    let content = event.stack || event.message;
+    
+    // Append timestamp to first line of error content (which contains the error message)
+    if (event.fullTs && content) {
+      const lines = content.split('\n');
+      if (lines.length > 0 && lines[0].trim()) {
+        // First line is typically "Error: message" or just the error message
+        lines[0] = lines[0].trimEnd() + ' ' + event.fullTs;
+        content = lines.join('\n');
+      }
+    }
+    
     return '```' + fenceType + '\n' + content + '\n```';
   } else if (event.type === 'console') {
     const level = event.level || 'log';
@@ -144,7 +182,13 @@ const formatBackgroundEvent = event => {
     }
     if (level === 'error') fenceType = 'Error';
     const metadata = 'console.' + level;
-    return '```' + fenceType + ' ' + metadata + '\n' + event.message + '\n```';
+    
+    let content = event.message;
+    if (event.caller && event.caller.trim()) {
+      content = event.caller + '\n' + event.message;
+    }
+    
+    return '```' + fenceType + ' ' + metadata + '\n' + content + '\n```';
   }
   return '```Text\n' + event.message + '\n```';
 };

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // @ts-check
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';

@@ -5,6 +5,8 @@ import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 const DEBUG_DIR = 'debug';
 const MASTER_FILE = 'debug.md';
 
+const startTime = new Date();
+
 /** @param {string} name */
 const sanitizeName = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -33,7 +35,7 @@ const pages = new Map();
 export function init(root) {
   const master = join(root, MASTER_FILE);
   if (!existsSync(master)) 
-    writeFileSync(master, '# Connected pages:\n\n> Master registry of connected pages and states.\n\n', 'utf8');
+    writeFileSync(master, '# 👾 DAEBUG started at ' + startTime + ':\n\n> Master registry of connected pages and states.\n\n', 'utf8');
 }
 
 /** @param {string} root @param {string} name @param {string} url */
@@ -73,7 +75,7 @@ export function getOrCreate(root, name, url) {
 
 /** @param {string} root */
 export function updateMaster(root) {
-  const lines = ['# Connected pages:\n', '> Master registry of connected pages and states.\n'];
+  const lines = ['# 👾 DAEBUG started at ' + startTime + '\n', '> Master registry of connected pages and states.\n'];
   for (const p of Array.from(pages.values()).sort((a, b) => b.lastSeen - a.lastSeen)) {
     const path = relative(root, p.file).replace(/\\/g, '/');
     lines.push(`* [${p.name}](${path}) (${p.url}) last ${clockFmt(p.lastSeen)} state: ${p.state}`);

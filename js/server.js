@@ -93,7 +93,13 @@ export function start(root, port) {
     }
     
     // Everything else: stream as-is
-    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
+    // Add cache-busting headers for JS files to prevent server-side caching
+    const headers = { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' };
+    if (extname(file) === '.js') {
+      headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0';
+      headers['Pragma'] = 'no-cache';
+    }
+    res.writeHead(200, headers);
     createReadStream(file).pipe(res);
   });
   
@@ -479,7 +485,7 @@ function matchPattern(path, pattern) {
  * @returns {string}
  */
 function formatTestProgress(payload) {
-  const { totals, duration, recentTests, complete } = payload;
+  const { totals, duration, recentTests, allTests, complete } = payload;
   const lines = [];
   
   if (complete) {
@@ -489,17 +495,37 @@ function formatTestProgress(payload) {
   }
   lines.push('');
   
-  if (recentTests && recentTests.length > 0) {
-    for (const test of recentTests) {
-      const status = test.status === 'pass' ? '✓' : test.status === 'fail' ? '✗' : '○';
+  // For final results, use allTests; for progress updates, use recentTests
+  const testsToShow = complete && allTests ? allTests : recentTests;
+  
+  if (testsToShow && testsToShow.length > 0) {
+    // Separate failed, skipped, and passed tests for better visibility
+    const failedTests = testsToShow.filter(/** @type {any} */ t => t.status === 'fail');
+    const skippedTests = testsToShow.filter(/** @type {any} */ t => t.status === 'skip');
+    const passedTests = testsToShow.filter(/** @type {any} */ t => t.status === 'pass');
+    
+    // Show failures first (most important)
+    for (const test of failedTests) {
       const suite = test.suite ? `${test.suite} > ` : '';
-      lines.push(`${status} ${suite}${test.name} (${test.duration}ms)`);
+      lines.push(`✗ ${suite}${test.name} (${test.duration}ms)`);
       
       if (test.error) {
         lines.push('  ```');
         lines.push('  ' + test.error.replace(/\n/g, '\n  '));
         lines.push('  ```');
       }
+    }
+    
+    // Show skipped tests
+    for (const test of skippedTests) {
+      const suite = test.suite ? `${test.suite} > ` : '';
+      lines.push(`○ ${suite}${test.name} (${test.duration}ms)`);
+    }
+    
+    // Show passed tests
+    for (const test of passedTests) {
+      const suite = test.suite ? `${test.suite} > ` : '';
+      lines.push(`✓ ${suite}${test.name} (${test.duration}ms)`);
     }
   }
   

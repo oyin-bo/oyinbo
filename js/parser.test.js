@@ -83,7 +83,7 @@ test('parseRequest returns complete object for footer-based request', () => {
   
   const result = parseRequest(input, 'page-1');
   
-  assert.deepStrictEqual0(result, {
+  assert.deepStrictEqual(result, {
     agent: 'bob',
     target: 'page-1',
     time: '09:15:30',

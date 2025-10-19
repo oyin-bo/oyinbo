@@ -122,6 +122,8 @@ export async function oyinboRunTests(options = {}) {
         if (!file.startsWith('/') && !file.startsWith('http')) {
           resolvedFile = '/' + file.replace(/^\.\//, '');
         }
+        // Add cache-busting query parameter to force re-import on each test run
+        resolvedFile += `?t=${Date.now()}`;
         await import(resolvedFile);
       } catch (err) {
         results.tests.push({
@@ -300,7 +302,7 @@ export async function run(options = {}) {
     const startTime = Date.now();
     const results = await oyinboRunTests({ files: testFiles, ...options });
     
-    // Stream final results
+    // Stream final results - include ALL tests, not just recent
     await streamProgress({
       complete: true,
       totals: {
@@ -310,7 +312,7 @@ export async function run(options = {}) {
         total: results.total
       },
       duration: results.duration,
-      recentTests: results.tests.slice(-10).map(t => ({
+      allTests: results.tests.map(t => ({
         name: t.name,
         suite: t.suite,
         status: t.skipped ? 'skip' : (t.passed ? 'pass' : 'fail'),

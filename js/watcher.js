@@ -53,12 +53,20 @@ export function watchPage(root, page) {
   };
   
   if (existsSync(page.file)) {
-    watch(page.file, debounceCheck);
+    const watcher = watch(page.file, debounceCheck);
+    watcher.on('error', (err) => {
+      console.warn(`[${page.name}] watcher error:`, err);
+      activeWatchers.delete(page.name);
+    });
   } else {
     const daebugDir = page.file.replace(/\\[^\\]+$/, '');
     try {
-      watch(daebugDir || '.', (eventType, filename) => {
+      const watcher = watch(daebugDir || '.', (eventType, filename) => {
         if (filename === page.file.split(/\\|\//).pop()) debounceCheck();
+      });
+      watcher.on('error', (err) => {
+        console.warn(`[${page.name}] directory watcher error:`, err);
+        activeWatchers.delete(page.name);
       });
     } catch {}
   }
@@ -110,7 +118,10 @@ export function watchForRestart(root) {
   };
   
   if (existsSync(daebugFile)) {
-    watch(daebugFile, debounceCheck);
+    const watcher = watch(daebugFile, debounceCheck);
+    watcher.on('error', (err) => {
+      console.warn('👾𝗱𝗲𝗯𝘂𝗴.𝗺𝗱 watcher error:', err);
+    });
     check(); // Initial check
   }
 }

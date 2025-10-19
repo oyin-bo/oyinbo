@@ -116,7 +116,13 @@ export async function oyinboRunTests(options = {}) {
     // Import test files
     for (const file of files) {
       try {
-        await import(file);
+        // Normalize file path to be absolute from root
+        // If relative path, make it absolute from root (/)
+        let resolvedFile = file;
+        if (!file.startsWith('/') && !file.startsWith('http')) {
+          resolvedFile = '/' + file.replace(/^\.\//, '');
+        }
+        await import(resolvedFile);
       } catch (err) {
         results.tests.push({
           name: `Import: ${file}`,

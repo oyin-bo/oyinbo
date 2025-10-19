@@ -8,6 +8,16 @@ Always give direct answers to questions, without including any extra commentary 
 [docs/*](docs) - Many other documentation files
 [js/*](js) - JavaScript implementation
 
+# Using REPL for **verification**, debugging and restarting
+
+REPL must be used to validate important changes, and debug any issues. It's AI-friendly and fast.
+
+* REPL is always available by running the server (`npm start`) and editing files.
+* To restart the server, use `%%SHUTDOWN%%` as described in [Server control and debugging](docs/1.3-workers-and-test-runner.md#server-control-and-debugging).
+* Refreshing a page can be achieved by REPL commands too!
+* Always verify the **execution timing IMMEDIATELY** when adding REPL command. It is critical and must not be skipped.
+* Running any commands except `npm start` and `npm test` is very expensive and must be avoided. Use file editing tools and these two commands. That includes `timeout` command too: **very** expensive.
+
 # Code comments
 
 Comments should explain complex or non-obvious code quirks and intent, NOT mirror code actions.

@@ -1,4 +1,4 @@
-# 🍯 **O**YINBO **Y**arn **I**s **N**ot **Bo**ring? Remote REPL
+# 👾DAEBUG: Remote REPL
 
 A file-based REPL for running JavaScript code in live pages. The server watches per-instance Markdown files under `debug/` and sends code to connected pages for execution.
 

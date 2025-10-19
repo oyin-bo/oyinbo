@@ -10,7 +10,7 @@ test('workerScript exports valid string', async () => {
 
 test('workerScript includes worker initialization', async () => {
   const { workerScript } = await import('./worker.js');
-  assert.ok(workerScript.includes('[oyinbo-worker] initialized'));
+  assert.ok(workerScript.includes('initialized'));
   assert.ok(workerScript.includes('self.addEventListener'));
 });
 
@@ -25,7 +25,7 @@ test('workerScript does not inject test runner inline', async () => {
   const { workerScript } = await import('./worker.js');
   // Worker uses import maps, not globalThis injection
   assert.ok(!workerScript.includes('globalThis.test'));
-  assert.ok(!workerScript.includes('globalThis.oyinboRunTests'));
+  assert.ok(!workerScript.includes('globalThis.daebugRunTests'));
 });
 
 test('workerScript includes polling loop', async () => {

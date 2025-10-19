@@ -10,7 +10,7 @@ describe('test-runner module exports', () => {
     // Module exports test/describe, not globalThis injection
     assert.ok(testRunnerScript.includes('export function test'));
     assert.ok(testRunnerScript.includes('export function describe'));
-    assert.ok(testRunnerScript.includes('export async function oyinboRunTests'));
+    assert.ok(testRunnerScript.includes('export async function daebugRunTests'));
   });
 
   test('testRunnerScript includes assertion library', async () => {
@@ -24,7 +24,7 @@ describe('test-runner module exports', () => {
 
   test('testRunnerScript includes test execution logic', async () => {
     const { testRunnerScript } = await import('./test-runner.js');
-    assert.ok(testRunnerScript.includes('async function oyinboRunTests'));
+    assert.ok(testRunnerScript.includes('async function daebugRunTests'));
     assert.ok(testRunnerScript.includes('await import('));
     assert.ok(testRunnerScript.includes('passed'));
     assert.ok(testRunnerScript.includes('failed'));
@@ -33,21 +33,21 @@ describe('test-runner module exports', () => {
 
 describe('test-runner functionality', () => {
   // Import the actual test runner functions from modules
-  let testFn, describeFn, itFn, oyinboRunTests, assertLib, AssertionError;
+  let testFn, describeFn, itFn, daebugRunTests, assertLib, AssertionError;
   
   test('load test runner module', async () => {
     const module = await import('./modules/test-runner.js');
     testFn = module.test;
     describeFn = module.describe;
     itFn = module.it;
-    oyinboRunTests = module.oyinboRunTests;
+    daebugRunTests = module.daebugRunTests;
     assertLib = module.assert;
     AssertionError = module.AssertionError;
     
     assert.ok(testFn, 'test function exported');
     assert.ok(describeFn, 'describe function exported');
     assert.ok(itFn, 'it function exported');
-    assert.ok(oyinboRunTests, 'oyinboRunTests function exported');
+    assert.ok(daebugRunTests, 'daebugRunTests function exported');
     assert.ok(assertLib, 'assert object exported');
     assert.ok(AssertionError, 'AssertionError class exported');
   });
@@ -248,7 +248,7 @@ describe('assertion library', () => {
 describe('test execution', () => {
   test('executes and returns results structure', async () => {
     const module = await import('./modules/test-runner.js');
-    const results = /** @type {any} */ (await module.oyinboRunTests({ files: [] }));
+    const results = /** @type {any} */ (await module.daebugRunTests({ files: [] }));
     
     assert.ok(typeof results.passed === 'number');
     assert.ok(typeof results.failed === 'number');

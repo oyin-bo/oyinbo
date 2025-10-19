@@ -3,29 +3,29 @@
 /**
  * Test runner as ES module for use via import maps
  * Usage: import { test, describe } from 'node:test'
- * (mapped to /oyinbo/test-runner.js via import maps)
+ * (mapped to /daebug/test-runner.js via import maps)
  */
 
 // Realm-based test registry (supports main thread + workers)
 function getTestRegistry(/** @type {string} */ realmId) {
   const g = /** @type {any} */ (globalThis);
-  if (!g.__oyinbo_test_registries) {
-    g.__oyinbo_test_registries = {};
+  if (!g.__daebug_test_registries) {
+    g.__daebug_test_registries = {};
   }
-  if (!g.__oyinbo_test_registries[realmId]) {
-    g.__oyinbo_test_registries[realmId] = {
+  if (!g.__daebug_test_registries[realmId]) {
+    g.__daebug_test_registries[realmId] = {
       tests: [],
       currentSuite: null
     };
   }
-  return g.__oyinbo_test_registries[realmId];
+  return g.__daebug_test_registries[realmId];
 }
 
 // Get realm ID from URL or sessionStorage
 function getRealmId() {
   try {
     if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
-      return sessionStorage.getItem('oyinbo-name') || 'main';
+      return sessionStorage.getItem('daebug-name') || 'main';
     }
   } catch (e) {
     // sessionStorage might not be accessible
@@ -95,7 +95,7 @@ export const it = test;
  * @param {object} options
  * @returns {Promise<object>} results
  */
-export async function oyinboRunTests(options = {}) {
+export async function daebugRunTests(options = {}) {
   const files = options.files || [];
   const timeout = options.timeout || 60000;
   const realmId = getRealmId();
@@ -217,7 +217,7 @@ export async function oyinboRunTests(options = {}) {
   // Make results available globally for REPL capture
   const g = /** @type {any} */ (globalThis);
   if (typeof globalThis !== 'undefined') {
-    g.__oyinbo_test_results = results;
+    g.__daebug_test_results = results;
   }
   
   return results;
@@ -249,7 +249,7 @@ export async function run(options = {}) {
     
     // If we have patterns, discover files from server
     if (patterns.length > 0 && typeof fetch !== 'undefined') {
-      const response = await fetch('/oyinbo/discover-tests', {
+      const response = await fetch('/daebug/discover-tests', { // TODO: covert to root-relative, avoid nested directories
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files: patterns })
@@ -285,7 +285,7 @@ export async function run(options = {}) {
       lastProgressTime = now;
       
       try {
-        await fetch('/oyinbo/test-progress', {
+        await fetch('/daebug/test-progress', { // TODO: covert to root-relative, avoid nested directories
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -298,9 +298,9 @@ export async function run(options = {}) {
       }
     };
     
-    // Run tests with oyinboRunTests
+    // Run tests with daebugRunTests
     const startTime = Date.now();
-    const results = await oyinboRunTests({ files: testFiles, ...options });
+    const results = await daebugRunTests({ files: testFiles, ...options });
     
     // Stream final results - include ALL tests, not just recent
     await streamProgress({

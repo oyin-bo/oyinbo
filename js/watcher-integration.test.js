@@ -12,7 +12,7 @@ describe('watchPage with parseRequest integration', () => {
   let page;
 
   test('setup', () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'oyinbo-watch-parse-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'daebug-watch-parse-'));
     page = {
       name: 'test-parse-page',
       file: join(tempDir, 'test-parse-page.md'),
@@ -104,7 +104,7 @@ describe('watchForRestart shutdown marker handling', () => {
   let tempDir;
 
   test('setup', () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'oyinbo-shutdown-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'daebug-shutdown-'));
   });
 
   test('finds %%SHUTDOWN%% on its own line', () => {
@@ -357,14 +357,14 @@ describe('watchForRestart shutdown handling', () => {
 
   test('logs shutdown complete', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('[oyinbo] Server shutdown complete'));
+    assert.ok(watcherContent.includes('Server shutdown complete'));
   });
 });
 
 describe('watcher error handling comprehensive', () => {
   test('catches debug.md check errors', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('[watcher] debug.md shutdown check error:'));
+    assert.ok(watcherContent.includes('hutdown check error:'));
   });
 
   test('handles missing debug.md gracefully', () => {

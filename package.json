@@ -1,7 +1,7 @@
 {
   "name": "daeb.ug",
   "description": "👾 Daebug Remote REPL",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "type": "module",
   "main": "index.js",
   "bin": {

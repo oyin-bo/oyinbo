@@ -12,7 +12,7 @@ test('clientScript does not inject test runner inline', async () => {
   const { clientScript } = await import('./client.js');
   // Test runner should NOT be injected inline - it's available via import maps
   assert.ok(!clientScript.includes('globalThis.test'));
-  assert.ok(!clientScript.includes('globalThis.oyinboRunTests'));
+  assert.ok(!clientScript.includes('globalThis.daebugRunTests'));
   assert.ok(!clientScript.includes('globalThis.assert'));
 });
 
@@ -83,7 +83,7 @@ test('clientScript includes serializeValue helper', async () => {
 test('clientScript handles worker creation failure', async () => {
   const { clientScript } = await import('./client.js');
   assert.ok(clientScript.includes('MAX_RESTART_ATTEMPTS'));
-  assert.ok(clientScript.includes('worker creation failed'));
+  assert.ok(clientScript.includes('to create worker'));
 });
 
 test('clientScript includes worker-init message', async () => {
@@ -102,7 +102,7 @@ test('clientScript includes ping/pong protocol', async () => {
 test('clientScript includes sessionStorage for name', async () => {
   const { clientScript } = await import('./client.js');
   assert.ok(clientScript.includes('sessionStorage'));
-  assert.ok(clientScript.includes('oyinbo-name'));
+  assert.ok(clientScript.includes('daebug-name'));
 });
 
 test('clientScript includes random word list for names', async () => {
@@ -115,7 +115,7 @@ test('clientScript includes random word list for names', async () => {
 test('clientScript includes worker termination logic', async () => {
   const { clientScript } = await import('./client.js');
   assert.ok(clientScript.includes('worker.terminate'));
-  assert.ok(clientScript.includes('unresponsive'));
+  assert.ok(clientScript.includes('worker, restarting'));
 });
 
 test('clientScript includes AsyncFunction for execution', async () => {

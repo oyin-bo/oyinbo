@@ -1,4 +1,4 @@
-# 🍯 **O**YINBO **Y**arn **I**s **N**ot **Bo**ring? Remote REPL
+# 👾 Daebug Remote REPL
 
 ## Project Mission Statement
 
@@ -15,7 +15,7 @@ Current software development and quality assurance processes are hindered by the
 ### **B. The Driving Forces (The 'Why')**
 
 * **Autonomous Debugging:** Move beyond static analysis to enable LLMs to iteratively test, diagnose, and fix runtime errors based on real-world results and comprehensive error logs.  
-* **Enhanced Software Quality:** By providing a direct control channel to runtime environments, **Oyinbo** significantly accelerates the identification and resolution of bugs, raising the quality bar for all connected systems.  
+* **Enhanced Software Quality:** By providing a direct control channel to runtime environments, **Daebug** significantly accelerates the identification and resolution of bugs, raising the quality bar for all connected systems.  
 * **LLM Productivity:** Create **LLM-native protocols** that eliminate the current friction caused by unstable I/O formats, thereby maximizing the efficiency and reliability of LLM-driven development tasks.
 
 ---
@@ -24,7 +24,7 @@ Current software development and quality assurance processes are hindered by the
 
 ### **A. Execution Realities: The Multi-Realm Backbone**
 
-**Oyinbo** must support a set of hetorogeneous execution targets, each treated as a distinct, stateful **realm**.
+**Daebug** must support a set of hetorogeneous execution targets, each treated as a distinct, stateful **realm**.
 
 | Execution Realm (Kernel) | Protocol/Integration | Primary Benefit |
 | :---- | :---- | :---- |
@@ -35,7 +35,7 @@ Current software development and quality assurance processes are hindered by the
 
 ### **B. The REPL Front-End: LLM-Native Transports**
 
-**Oyinbo** will decouple the realm execution engine from the input/output transport, prioritizing formats most productive for LLMs.
+**Daebug** will decouple the realm execution engine from the input/output transport, prioritizing formats most productive for LLMs.
 
 | Transport Mechanism | Primary Format | Key Feature |
 | :---- | :---- | :---- |

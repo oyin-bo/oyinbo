@@ -19,10 +19,10 @@ const MIME = {
 };
 
 /** @type {Record<string, string>} */
-const OYINBO_MODULES = {
-  '/oyinbo/test-runner.js': testRunnerModule,
-  '/oyinbo/assert.js': assertModule,
-  '/oyinbo/worker-bootstrap.js': workerBootstrapModule
+const DAEBUG_MODULES = {
+  '/daebug/test-runner.js': testRunnerModule,
+  '/daebug/assert.js': assertModule,
+  '/daebug/worker-bootstrap.js': workerBootstrapModule
 };
 
 /** @param {string} root @param {number} port */
@@ -31,25 +31,25 @@ export function start(root, port) {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     
     // Polling endpoints
-    if (url.pathname === '/oyinbo') {
+    if (url.pathname === '/daebug') {
       if (req.method === 'GET') return handlePoll(root, url, res);
       if (req.method === 'POST') return handleResult(url, req, res);
     }
     
-    // Oyinbo modules (test-runner.js, assert.js)
-    if (url.pathname in OYINBO_MODULES) {
-      console.log(`[oyinbo] serving module: ${url.pathname}`);
+    // Daebug modules (test-runner.js, assert.js)
+    if (url.pathname in DAEBUG_MODULES) {
+      console.log(`👾serving module: ${url.pathname}`);
       return res.writeHead(200, { 'Content-Type': MIME['.js'] })
-        .end(OYINBO_MODULES[url.pathname]);
+        .end(DAEBUG_MODULES[url.pathname]);
     }
     
     // Test discovery endpoint
-    if (url.pathname === '/oyinbo/discover-tests' && req.method === 'POST') {
+    if (url.pathname === '/daebug/discover-tests' && req.method === 'POST') {
       return handleTestDiscovery(root, req, res);
     }
     
     // Test progress streaming endpoint
-    if (url.pathname === '/oyinbo/test-progress' && req.method === 'POST') {
+    if (url.pathname === '/daebug/test-progress' && req.method === 'POST') {
       return handleTestProgress(req, res);
     }
     
@@ -60,7 +60,7 @@ export function start(root, port) {
     
     const file = join(root, path);
     if (!existsSync(file)) {
-      console.log(`[oyinbo] 404: ${url.pathname}`);
+      console.log(`👾𝟰𝟬𝟰 ${url.pathname}`);
       return res.writeHead(404).end('Not found');
     }
     
@@ -69,7 +69,7 @@ export function start(root, port) {
       const html = readFileSync(file, 'utf8');
       const modified = processImportMapHTML(html, root);
       const withClient = injectClientScript(modified);
-      console.log(`[oyinbo] serving HTML with import map injected: ${path}`);
+      console.log(`👾serving HTML with import map injected: ${path}`);
       return res.writeHead(200, { 'Content-Type': MIME['.html'] })
         .end(withClient);
     }
@@ -80,7 +80,7 @@ export function start(root, port) {
       try {
         const json = JSON.parse(content);
         if (json.imports || json.scopes) {
-          // It's an import map - merge oyinbo mappings
+          // It's an import map - merge daebug mappings
           const merged = mergeImportMaps(json);
           return res.writeHead(200, { 'Content-Type': MIME['.json'] })
             .end(JSON.stringify(merged));
@@ -103,7 +103,7 @@ export function start(root, port) {
     createReadStream(file).pipe(res);
   });
   
-  server.listen(port, () => console.log(`[oyinbo] http://localhost:${port}/`));
+  server.listen(port, () => console.log(`👾 http://localhost:${port}/`));
 }
 
 /**
@@ -113,10 +113,10 @@ export function start(root, port) {
  * @returns {string}
  */
 function processImportMapHTML(html, root) {
-  const oyinboMappings = {
-    'node:test': '/oyinbo/test-runner.js',
-    'node:assert': '/oyinbo/assert.js',
-    'node:assert/strict': '/oyinbo/assert.js'
+  const daebugMappings = {
+    'node:test': '/daebug/test-runner.js',
+    'node:assert': '/daebug/assert.js',
+    'node:assert/strict': '/daebug/assert.js'
   };
   
   // Check for inline import maps
@@ -131,7 +131,7 @@ function processImportMapHTML(html, root) {
       const existing = JSON.parse(mapContent);
       const merged = {
         imports: {
-          ...oyinboMappings,
+          ...daebugMappings,
           ...existing.imports
         },
         ...(existing.scopes && { scopes: existing.scopes })
@@ -139,7 +139,7 @@ function processImportMapHTML(html, root) {
       const newMapScript = `<script type="importmap">\n${JSON.stringify(merged, null, 2)}\n</script>`;
       return html.replace(match[0], newMapScript);
     } catch (e) {
-      console.warn('[oyinbo] failed to parse inline import map:', e);
+      console.warn('👾𝗽𝗮𝗿𝘀𝗲 failed for inline import map:', e);
       // Continue - will inject new one below
     }
   }
@@ -153,7 +153,7 @@ function processImportMapHTML(html, root) {
   }
   
   // No import map found - inject one
-  const newMap = `<script type="importmap">\n${JSON.stringify({imports: oyinboMappings}, null, 2)}\n</script>`;
+  const newMap = `<script type="importmap">\n${JSON.stringify({imports: daebugMappings}, null, 2)}\n</script>`;
   return injectImportMap(html, newMap);
 }
 
@@ -206,20 +206,20 @@ function injectClientScript(html) {
 }
 
 /**
- * Merge import maps with oyinbo mappings
+ * Merge import maps with daebug mappings
  * @param {any} existing
  * @returns {any}
  */
 function mergeImportMaps(existing) {
-  const oyinboMappings = {
-    'node:test': '/oyinbo/test-runner.js',
-    'node:assert': '/oyinbo/assert.js',
-    'node:assert/strict': '/oyinbo/assert.js'
+  const daebugMappings = {
+    'node:test': '/daebug/test-runner.js',
+    'node:assert': '/daebug/assert.js',
+    'node:assert/strict': '/daebug/assert.js'
   };
   
   return {
     imports: {
-      ...oyinboMappings,
+      ...daebugMappings,
       ...existing.imports
     },
     ...(existing.scopes && { scopes: existing.scopes })

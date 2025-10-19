@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import * as registry from './registry.js';
 
 test('getOrCreate creates new page when not exists', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     const page = registry.getOrCreate(root, 'test-page', 'http://localhost');
     assert.strictEqual(page.name, 'test-page');
@@ -23,7 +23,7 @@ test('getOrCreate creates new page when not exists', () => {
 });
 
 test('getOrCreate sets url correctly', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     const page = registry.getOrCreate(root, 'test-page-url', 'http://example.com');
     assert.strictEqual(page.url, 'http://example.com');
@@ -33,7 +33,7 @@ test('getOrCreate sets url correctly', () => {
 });
 
 test('getOrCreate sets state to idle initially', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     const page = registry.getOrCreate(root, 'test-page', 'http://localhost');
     assert.strictEqual(page.state, 'idle');
@@ -43,7 +43,7 @@ test('getOrCreate sets state to idle initially', () => {
 });
 
 test('getOrCreate returns existing page on second call', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     const page1 = registry.getOrCreate(root, 'test-page', 'http://localhost');
     const page2 = registry.getOrCreate(root, 'test-page', 'http://localhost');
@@ -54,7 +54,7 @@ test('getOrCreate returns existing page on second call', () => {
 });
 
 test('getOrCreate updates lastSeen on second call', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     const page1 = registry.getOrCreate(root, 'test-page', 'http://localhost');
     const firstSeen = page1.lastSeen;
@@ -74,7 +74,7 @@ test('get returns undefined for non-existent page', () => {
 });
 
 test('get returns page after getOrCreate', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     const page = registry.getOrCreate(root, 'test-page', 'http://localhost');
     const retrieved = registry.get('test-page');
@@ -92,7 +92,7 @@ test('all returns empty array initially', () => {
 });
 
 test('all returns array of pages after creation', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     registry.getOrCreate(root, 'page-1', 'http://localhost');
     registry.getOrCreate(root, 'page-2', 'http://localhost');
@@ -104,7 +104,7 @@ test('all returns array of pages after creation', () => {
 });
 
 test('getOrCreate finds existing per-instance file with footer', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     const debugDir = join(root, 'debug');
     mkdirSync(debugDir, { recursive: true });
@@ -125,7 +125,7 @@ test('getOrCreate finds existing per-instance file with footer', () => {
 });
 
 test('getOrCreate creates sanitized filename', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     const page = registry.getOrCreate(root, 'Test@Page#123', 'http://localhost');
     assert.ok(page.file.includes('test-page-123'));
@@ -135,7 +135,7 @@ test('getOrCreate creates sanitized filename', () => {
 });
 
 test('init creates master file when not exists', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     registry.init(root);
     const masterPath = join(root, 'debug.md');

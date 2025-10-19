@@ -1,7 +1,6 @@
 // @ts-nocheck
 /**
  * Web Worker bootstrap module
- * Served via import map: 'node:oyinbo/worker' -> '/oyinbo/worker-bootstrap.js'
  * This allows workers to inherit import maps and use top-level imports
  */
 
@@ -9,7 +8,7 @@
 const name = self.name || 'worker-unknown';
 
 const __ORIGIN__ = location.origin;
-const endpoint = __ORIGIN__ + '/oyinbo?name=' + encodeURIComponent(name) + '&url=worker://' + encodeURIComponent(name);
+const endpoint = __ORIGIN__ + '/daebug?name=' + encodeURIComponent(name) + '&url=worker://' + encodeURIComponent(name);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const backgroundEvents = [];
 
@@ -97,7 +96,7 @@ self.addEventListener('message', e => {
   }
 });
 
-console.log('[oyinbo-worker] initialized');
+console.log('👾𝘄𝗼𝗿𝗸𝗲𝗿: initialized');
 
 // Main polling loop
 (async () => {
@@ -137,7 +136,7 @@ console.log('[oyinbo-worker] initialized');
       
       await sleep(100);
     } catch (err) {
-      console.warn('[oyinbo-worker] fetch error:', err);
+      console.warn('👾𝘄𝗼𝗿𝗸𝗲𝗿: fetch error:', err);
       await sleep(3000);
     }
   }

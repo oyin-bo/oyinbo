@@ -13,7 +13,7 @@ describe('writeReply with requestHasFooter false', () => {
   let testFile;
 
   test('setup', () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'oyinbo-writer-reply-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'daebug-writer-reply-'));
     testFile = join(tempDir, 'test-page.md');
   });
 
@@ -124,7 +124,7 @@ describe('writeReply with executing block', () => {
   let testFile;
 
   test('setup', () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'oyinbo-writer-exec-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'daebug-writer-exec-'));
     testFile = join(tempDir, 'test-page.md');
   });
 
@@ -214,7 +214,7 @@ describe('writeExecuting with requestHasFooter false', () => {
   let testFile;
 
   test('setup', () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'oyinbo-writer-exec2-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'daebug-writer-exec2-'));
     testFile = join(tempDir, 'test-page.md');
   });
 
@@ -292,7 +292,7 @@ describe('writeReply with backgroundEvents', () => {
   let testFile;
 
   test('setup', () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'oyinbo-writer-bg-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'daebug-writer-bg-'));
     testFile = join(tempDir, 'test-page.md');
   });
 
@@ -421,7 +421,7 @@ describe('writeReply file missing handling', () => {
   let tempDir;
 
   test('setup', () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'oyinbo-writer-miss-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'daebug-writer-miss-'));
   });
 
   test('skips write when file does not exist', () => {
@@ -461,7 +461,7 @@ describe('writeExecuting file missing handling', () => {
   let tempDir;
 
   test('setup', () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'oyinbo-writer-miss2-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'daebug-writer-miss2-'));
   });
 
   test('skips write when file does not exist', () => {

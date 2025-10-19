@@ -26,8 +26,8 @@ The `1.6-npx-tool.md` document outlines transforming Daebug into a global CLI to
 - `package.json` `bin` field configuration
 
 🔄 **Changed Since Document**:
-- **Long-polling architecture**: Document pre-dates this; server now uses `/oyinbo` endpoint with long-polling instead of websockets or immediate response
-- **Asset serving via suffix**: Import maps and Oyinbo modules now served from root with special path handling (`/oyinbo/*` namespace) instead of separate serving logic
+- **Long-polling architecture**: Document pre-dates this; server now uses `/daebug` endpoint with long-polling instead of websockets or immediate response
+- **Asset serving via suffix**: Import maps and 👾Daebug modules now served from root with special path handling (`/daebug/*` namespace) instead of separate serving logic
 - **Registry and pages**: Fully parameterized; document assumption is correct
 - **Watcher debouncing**: File watching has debounce and "seen files" tracking (not in document)
 
@@ -42,7 +42,7 @@ The `1.6-npx-tool.md` document outlines transforming Daebug into a global CLI to
 **Document Says**:
 ```json
 {
-  "bin": { "oyinbo": "./index.js" },
+  "bin": { "daebug": "./index.js" },
   "main": "./js/cli.js",
   "files": ["bin/", "js/", "index.js", "README.md", "LICENSE"]
 }
@@ -246,10 +246,10 @@ async function handlePoll(root, url, res) {
 
 **Current Reality** (`js/server.js`):
 ```javascript
-// Oyinbo modules (test-runner.js, assert.js)
-if (url.pathname in OYINBO_MODULES) {
-  console.log(`[oyinbo] serving module: ${url.pathname}`);
-  return res.writeHead(200).end(OYINBO_MODULES[url.pathname]);
+// 👾Daebug modules (test-runner.js, assert.js)
+if (url.pathname in DAEBUG_MODULES) {
+  console.log(`[daebug] serving module: ${url.pathname}`);
+  return res.writeHead(200).end(DAEBUG_MODULES[url.pathname]);
 }
 
 // HTML files: inject/merge import maps and client script
@@ -271,7 +271,7 @@ if (extname(file) === '.json') {
 ```
 
 **Status**: ✅ Implemented, Not in Document
-- Special namespace `/oyinbo/*` for test runner and bootstrap modules
+- Special namespace `/daebug/*` for test runner and bootstrap modules
 - Import map detection and merging for both HTML and JSON files
 - Automatic client script injection into HTML
 - Cache-busting headers for JS files
@@ -327,15 +327,15 @@ const check = () => {
 
 **Document Example**:
 ```
-[oyinbo] serving /Users/alice/my-project
-[oyinbo] http://localhost:8342/
-[oyinbo] debug registry: debug.md
-[oyinbo] watching: debug/*.md
+[daebug] serving /Users/alice/my-project
+[daebug] http://localhost:8342/
+[daebug] debug registry: debug.md
+[daebug] watching: debug/*.md
 ```
 
 **Current Reality** (`js/server.js` & `js/watcher.js`):
 ```
-[oyinbo] serving HTML with import map injected: index.html
+[daebug] serving HTML with import map injected: index.html
 > user to index-html "const x = 42; x"
 ```
 
@@ -398,10 +398,10 @@ server.on('error', err => {
 
 **Document Says**:
 ```
-oyinbo — File-based REPL for JavaScript
+daebug — File-based REPL for JavaScript
 
 Usage:
-  npx oyinbo [options]
+  npx daebug [options]
 
 Options:
   --root <path>     Project root directory (default: current directory)
@@ -410,9 +410,9 @@ Options:
   --version, -v     Show version
 
 Examples:
-  npx oyinbo
-  npx oyinbo --port=9000
-  npx oyinbo --root=/path/to/project
+  npx daebug
+  npx daebug --port=9000
+  npx daebug --root=/path/to/project
 ```
 
 **Current Reality**: No help or version support
@@ -485,7 +485,7 @@ function run() {
 ```json
 {
   "main": "./js/cli.js",
-  "bin": { "oyinbo": "./index.js" },
+  "bin": { "daebug": "./index.js" },
   "files": ["js/", "index.js", "README.md", "LICENSE"],
   "engines": { "node": ">=18.0.0" }
 }

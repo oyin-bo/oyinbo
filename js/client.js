@@ -2,25 +2,25 @@
 
 /** Browser injector script */
 export async function clientMainFunction() {
-  console.log('[oyinbo] injected');
+  console.log('👾injected');
   
   // Check import map support
   if (!HTMLScriptElement.supports || !HTMLScriptElement.supports('importmap')) {
-    console.warn('[oyinbo] WARNING: Import maps not supported in this browser');
+    console.warn('👾𝘄𝗮𝗿𝗻𝗶𝗻𝗴 Import maps not supported in this browser');
   } else {
     const importMaps = document.querySelectorAll('script[type="importmap"]');
-    console.log(`[oyinbo] Found ${importMaps.length} import map(s)`);
+    console.log(`👾Found ${importMaps.length} import map(s)`);
     if (importMaps.length > 0) {
       try {
         const map = JSON.parse(importMaps[0].textContent);
-        console.log('[oyinbo] Import map:', map);
+        console.log('👾Import map:', map);
       } catch(e) {
-        console.error('[oyinbo] Failed to parse import map:', e);
+        console.error('👾𝗳𝗮𝗶𝗹𝗲𝗱 to parse import map:', e);
       }
     }
   }
   
-  let name = sessionStorage.getItem('oyinbo-name');
+  let name = sessionStorage.getItem('daebug-name');
   if (!name) {
     const words = [
       'mint,nova,ember,zen,lumen,oak,river,kite,moss,nook,sol,vibe',
@@ -31,7 +31,7 @@ export async function clientMainFunction() {
     const now = new Date();
     const time = [now.getHours(), now.getMinutes(), now.getSeconds()].map(x => String(x).padStart(2, '0'));
     name = (Math.floor(Math.random() * 15) + 5) + '-' + words[Math.floor(Math.random() * words.length)] + '-' + time[0] + time[1] + '-' + time[2];
-    sessionStorage.setItem('oyinbo-name', name);
+    sessionStorage.setItem('daebug-name', name);
   }
   
   // Worker management
@@ -48,7 +48,7 @@ export async function clientMainFunction() {
   
   function createWorker() {
     if (workerRestartCount >= MAX_RESTART_ATTEMPTS) {
-      console.warn('[oyinbo] max worker restart attempts reached');
+      console.warn('👾𝗺𝗮𝘅 worker restart attempts reached');
       return null;
     }
     
@@ -56,7 +56,7 @@ export async function clientMainFunction() {
       const workerName = sanitizeName(name + '-webworker');
       
       // Create worker from served module (inherits import maps)
-      const workerUrl = location.origin + '/oyinbo/worker-bootstrap.js';
+      const workerUrl = location.origin + '/daebug/worker-bootstrap.js'; // TODO: serve from root path, not directory
       const w = new Worker(workerUrl, { name: workerName, type: 'module' });
       
       w.addEventListener('message', e => {
@@ -64,14 +64,14 @@ export async function clientMainFunction() {
       });
       
       w.addEventListener('error', e => {
-        console.warn('[oyinbo] worker error:', e.message);
+        console.warn('👾𝘄𝗼𝗿𝗸𝗲𝗿 𝗲𝗿𝗿𝗼𝗿 ', e.message);
       });
       
-      console.log('[oyinbo] worker created:', workerName);
+      console.log('👾worker created:', workerName);
       workerRestartCount++;
       lastWorkerPong = Date.now();
       
-      fetch('/oyinbo?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
+      fetch('/daebug?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'worker-init', mainPage: name })
@@ -79,7 +79,7 @@ export async function clientMainFunction() {
       
       return w;
     } catch (err) {
-      console.warn('[oyinbo] worker creation failed:', err.message);
+      console.warn('👾𝗳𝗮𝗶𝗹𝗲𝗱 to create worker ', err.message);
       return null;
     }
   }
@@ -89,9 +89,9 @@ export async function clientMainFunction() {
     const timeSinceLastPong = Date.now() - lastWorkerPong;
     
     if (timeSinceLastPong > WORKER_TIMEOUT) {
-      console.warn('[oyinbo] worker unresponsive, restarting');
+  console.warn('👾𝘂𝗻𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗶𝘃𝗲 worker, restarting');
       const workerName = sanitizeName(name + '-webworker');
-      fetch('/oyinbo?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
+      fetch('/daebug?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'worker-timeout', duration: timeSinceLastPong })
@@ -108,7 +108,8 @@ export async function clientMainFunction() {
       try {
         worker.postMessage({ type: 'ping' });
       } catch (err) {
-        console.warn('[oyinbo] worker ping failed:', err.message);
+        console.warn('👾𝗳𝗮𝗶𝗹𝗲𝗱 to ping worker:', err.message);
+        console.warn('failed to ping worker: ' + (err && err.message ? err.message : String(err)));
       }
     }
   }
@@ -118,7 +119,7 @@ export async function clientMainFunction() {
     workerHealthCheckInterval = setInterval(checkWorkerHealth, WORKER_HEALTH_CHECK_INTERVAL);
   }
   
-  const endpoint = '/oyinbo?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(location.href);
+  const endpoint = '/daebug?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(location.href);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const backgroundEvents = [];
   
@@ -235,7 +236,7 @@ export async function clientMainFunction() {
       
       await sleep(100);
     } catch (err) {
-      console.warn('[oyinbo] fetch error:', err);
+      console.warn('👾𝗳𝗲𝘁𝗰𝗵 error ', err);
       await sleep(3000);
     }
   }

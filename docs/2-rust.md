@@ -132,7 +132,7 @@ Testing strategy
 Implementation roadmap (concrete steps)
 
 1) Crate skeleton
-   - `oyinbo-server` Rust crate using `tokio` + `axum` or `hyper` for HTTP, `serde`/`serde_json` for payloads, and `tokio::fs` for async file ops.
+   - `daebug-server` Rust crate using `tokio` + `axum` or `hyper` for HTTP, `serde`/`serde_json` for payloads, and `tokio::fs` for async file ops.
 
 2) Core components
    - File manager: safe read/write, temp-file replace, per-instance lock manager.
@@ -171,4 +171,4 @@ Using Rust as the orchestration and HTTP server (while leaving JS execution to t
 
 Next steps
 
-- I can implement the `oyinbo-server` crate skeleton and the file-manager + parser in Rust and add unit tests for the parsing/atomic-write behaviour. Then I'll add minimal Node-based integration tests that exercise the HTTP routes end-to-end. If you want me to start that, tell me to proceed and I will create the crate and initial files.
+- I can implement the `daebug-server` crate skeleton and the file-manager + parser in Rust and add unit tests for the parsing/atomic-write behaviour. Then I'll add minimal Node-based integration tests that exercise the HTTP routes end-to-end. If you want me to start that, tell me to proceed and I will create the crate and initial files.

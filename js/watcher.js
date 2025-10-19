@@ -86,7 +86,7 @@ export function watchForRestart(root) {
       
       if (shutdownLine !== -1) {
         const shutdownRequestedAt = new Date();
-        console.log('[oyinbo] ' + shutdownRequestedAt.toLocaleTimeString() + ' %%SHUTDOWN%% detected in debug.md - shutting down server...');
+        console.log('👾' + shutdownRequestedAt.toLocaleTimeString() + ' %%SHUTDOWN%% detected in debug.md - shutting down server...');
         
         // Update debug.md with server down message
         const downMessage = `# Server has been shut down ${shutdownRequestedAt.toLocaleTimeString()}
@@ -95,11 +95,11 @@ export function watchForRestart(root) {
         writeFileSync(debugFile, downMessage, 'utf8');
         
         // Clean shutdown
-        console.log('[oyinbo] Server shutdown complete');
+        console.log('👾Server shutdown complete');
         process.exit(0);
       }
     } catch (err) {
-      console.warn('[watcher] debug.md shutdown check error:', err);
+      console.warn('👾𝗱𝗲𝗯𝘂𝗴.𝗺𝗱 shutdown check error:', err);
     }
   };
   

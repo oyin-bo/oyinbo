@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import * as job from './job.js';
 
 test('create sets agent field correctly', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -23,7 +23,7 @@ test('create sets agent field correctly', () => {
 });
 
 test('create sets code field correctly', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -39,7 +39,7 @@ test('create sets code field correctly', () => {
 });
 
 test('create sets requestHasFooter field correctly', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -55,7 +55,7 @@ test('create sets requestHasFooter field correctly', () => {
 });
 
 test('create defaults requestHasFooter to true', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -71,7 +71,7 @@ test('create defaults requestHasFooter to true', () => {
 });
 
 test('create sets page state to executing', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -87,7 +87,7 @@ test('create sets page state to executing', () => {
 });
 
 test('create sets startedAt to null initially', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -103,7 +103,7 @@ test('create sets startedAt to null initially', () => {
 });
 
 test('create sets requestedAt timestamp', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -121,7 +121,7 @@ test('create sets requestedAt timestamp', () => {
 });
 
 test('get returns job by page name', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -143,7 +143,7 @@ test('get returns undefined for non-existent job', () => {
 });
 
 test('finish sets page state to idle', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -160,7 +160,7 @@ test('finish sets page state to idle', () => {
 });
 
 test('finish sets finishedAt timestamp', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -177,7 +177,7 @@ test('finish sets finishedAt timestamp', () => {
 });
 
 test('finish removes job from registry', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -195,7 +195,7 @@ test('finish removes job from registry', () => {
 });
 
 test('start sets startedAt timestamp', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');
@@ -214,7 +214,7 @@ test('start sets startedAt timestamp', () => {
 });
 
 test('start is idempotent', () => {
-  const root = mkdtempSync(join(tmpdir(), 'oyinbo-test-'));
+  const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     mkdirSync(join(root, 'debug'), { recursive: true });
     const file = join(root, 'debug', 'test.md');

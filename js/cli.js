@@ -120,9 +120,9 @@ async function findAvailablePort(root, preferredPort) {
  */
 function showHelp() {
   console.log(`
-👾 Oyinbo - Remote REPL for debugging
+👾 Deabug - Remote REPL for debugging
 
-Usage: oyinbo [options]
+Usage: daebug [options]
 
 Options:
   --root, -r <path>    Root directory to serve (default: current directory)
@@ -131,10 +131,10 @@ Options:
   --version, -v       Show version number
 
 Examples:
-  oyinbo                        # Start in current directory
-  oyinbo --root=/path/to/project
-  oyinbo --port=9000
-  oyinbo --root=/project --port=9000
+  daebug                        # Start in current directory
+  daebug --root=/path/to/project
+  daebug --port=9000
+  daebug --root=/project --port=9000
 `);
 }
 
@@ -175,7 +175,7 @@ export async function run() {
     finalPort = await findAvailablePort(root, derivedPort);
   }
 
-  console.log(`[oyinbo] serving ${root} on http://localhost:${finalPort}/`);
+  console.log(`👾 serving ${root} on http://localhost:${finalPort}/`);
 
   registry.init(root);
   server.start(root, finalPort);

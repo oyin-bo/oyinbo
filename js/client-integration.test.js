@@ -55,14 +55,14 @@ describe('clientMainFunction deep inspection', () => {
 
   test('logs fetch errors', async () => {
     const { clientScript } = await import('./client.js');
-    assert.ok(clientScript.includes('[oyinbo] fetch error:'));
+    assert.ok(clientScript.includes('error'));
   });
 });
 
 describe('worker management integration', () => {
   test('includes worker URL construction from location.origin', async () => {
     const { clientScript } = await import('./client.js');
-    assert.ok(clientScript.includes('location.origin + \'/oyinbo/worker-bootstrap.js\''));
+    assert.ok(clientScript.includes('location.origin + \'/daebug/worker-bootstrap.js\'')); // TODO: serve from root path, not directory
   });
 
   test('includes worker name in Worker constructor', async () => {
@@ -115,7 +115,7 @@ describe('worker management integration', () => {
 describe('name generation and storage', () => {
   test('checks sessionStorage first', async () => {
     const { clientScript } = await import('./client.js');
-    assert.ok(clientScript.includes('sessionStorage.getItem(\'oyinbo-name\')'));
+    assert.ok(clientScript.includes('sessionStorage.getItem(\'daebug-name\')'));
   });
 
   test('generates name with random number 5-19', async () => {
@@ -145,7 +145,7 @@ describe('name generation and storage', () => {
 
   test('saves generated name to sessionStorage', async () => {
     const { clientScript } = await import('./client.js');
-    assert.ok(clientScript.includes('sessionStorage.setItem(\'oyinbo-name\', name)'));
+    assert.ok(clientScript.includes('sessionStorage.setItem(\'daebug-name\', name)'));
   });
 
   test('includes name sanitization logic', async () => {
@@ -265,7 +265,7 @@ describe('endpoint construction', () => {
 
   test('constructs full endpoint path', async () => {
     const { clientScript } = await import('./client.js');
-    assert.ok(clientScript.includes('/oyinbo?name='));
+    assert.ok(clientScript.includes('/daebug?name='));
     assert.ok(clientScript.includes('&url='));
   });
 
@@ -285,7 +285,7 @@ describe('import map support check', () => {
 
   test('warns if import maps not supported', async () => {
     const { clientScript } = await import('./client.js');
-    assert.ok(clientScript.includes('WARNING: Import maps not supported'));
+    assert.ok(clientScript.includes('mport maps not supported'));
   });
 
   test('queries for importmap script tags', async () => {
@@ -305,7 +305,7 @@ describe('import map support check', () => {
 
   test('catches import map parse errors', async () => {
     const { clientScript } = await import('./client.js');
-    assert.ok(clientScript.includes('Failed to parse import map:'));
+    assert.ok(clientScript.includes('to parse import map:'));
   });
 });
 

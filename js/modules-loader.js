@@ -14,7 +14,7 @@ export const testRunnerModule = readFileSync(join(__dirname, 'modules/test-runne
 /** Load assert module content (re-export from test-runner) */
 export const assertModule = `
 // Re-export assert from test-runner
-import { assert, AssertionError } from '/oyinbo/test-runner.js';
+import { assert, AssertionError } from '/daebug/test-runner.js'; // TODO: use rooted path, not subdirectory
 export { assert, AssertionError };
 export default assert;
 `;

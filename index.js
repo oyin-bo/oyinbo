@@ -3,6 +3,6 @@
 import { run } from './js/cli.js';
 
 run().catch(err => {
-  console.error('[oyinbo] error:', err.message);
+  console.error('👾 error:', err.message);
   process.exit(1);
 });

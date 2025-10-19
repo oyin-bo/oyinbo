@@ -349,7 +349,7 @@ function handleTestProgress(req, res) {
       // Format test progress as markdown
       const markdown = formatTestProgress(payload);
       
-      // Write to realm's debug log
+      // Write to realm's daebug log
       writer.writeTestProgress(page.file, markdown);
       
       console.log('[test-progress]', realmName, ':', payload.totals?.total || 0, 'tests');

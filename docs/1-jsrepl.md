@@ -4,17 +4,17 @@ This document specifies the file-based JavaScript REPL behaviour used by the loc
 
 ## Architecture summary
 
-- Master registry: `debug.md` at repository root. Very small surface area — lists active realm instances and their current state (idle/executing/completed/failed) with last heartbeat timestamps.
-- Per-instance chat log files: stored under `debug/` directory at repo root. One file per realm instance (for example: `debug/index-7-zen-1201-03-1a2b.md`). These are the authoritative, append-only chat logs for each realm instance.
+- Master registry: `daebug.md` at repository root. Very small surface area — lists active realm instances and their current state (idle/executing/completed/failed) with last heartbeat timestamps.
+- Per-instance chat log files: stored under `daebug/` directory at repo root. One file per realm instance (for example: `daebug/index-7-zen-1201-03-1a2b.md`). These are the authoritative, append-only chat logs for each realm instance.
 
-Per-instance chat-log files under `debug/` directory must be created by agents. That of course includes the directory herself. The server will not automatically create per-instance `.md` files nor the directory; it will only detect and manage files that already exist on disk. When an agent creates or recreates a per-instance file (including restoring a deleted file) and places the canonical footer, the server will detect it, register the page in `debug.md`, and take over lifecycle management for that file. If a per-instance file is deleted, the server will not recreate it — the file must be recreated by the agent for the server to resume management.
+Per-instance chat-log files under `daebug/` directory must be created by agents. That of course includes the directory herself. The server will not automatically create per-instance `.md` files nor the directory; it will only detect and manage files that already exist on disk. When an agent creates or recreates a per-instance file (including restoring a deleted file) and places the canonical footer, the server will detect it, register the page in `daebug.md`, and take over lifecycle management for that file. If a per-instance file is deleted, the server will not recreate it — the file must be recreated by the agent for the server to resume management.
 
 
 Directories (relative to repo root):
 
 ```
-debug.md                # master registry (lightweight)
-debug/                  # per-instance logs
+daebug.md                # master registry (lightweight)
+daebug/                  # per-instance logs
   index-7-zen-1201-03-1a2b.md
   12-dove-1631-13-3f4e.md
 ```
@@ -23,7 +23,7 @@ debug/                  # per-instance logs
 
 - Per-instance filename pattern: `<page-name>.md` where `<page-name>` is a sanitized version of the realm instance name reported from the remote realm. Sanitization merely removes susceptible non-filename-safe characters and lowercases the name.
 
-## Master registry (`debug.md`) format
+## Master registry (`daebug.md`) format
 
 The master registry is small and intentionally machine- and human-friendly. It is fully managed by the server and should not be hand-edited by the user.
 
@@ -37,11 +37,11 @@ Header example:
 
 The master file also contains an at-a-glance list of recent jobs (optional) and pointers to per-instance files. Keep this file under ~200 lines to avoid editor churn.
 
-Registry behaviour: the list inside `debug.md` MUST reflect connected pages and include links to each per-instance file. Links should be emitted whether the target per-instance file currently exists or is missing; a missing link helps to recreate or restore the page file.
+Registry behaviour: the list inside `daebug.md` MUST reflect connected pages and include links to each per-instance file. Links should be emitted whether the target per-instance file currently exists or is missing; a missing link helps to recreate or restore the page file.
 
 Instructive header (human-friendly guidance)
 
-Each per-instance log file and the master registry (`debug.md`) SHOULD include a short, human-friendly instructive header near the top of the file. The goal is to let a human or an LLM arriving at the file immediately understand what the file is and how to use it — keep the header short, plain-language, and friendly.
+Each per-instance log file and the master registry (`daebug.md`) SHOULD include a short, human-friendly instructive header near the top of the file. The goal is to let a human or an LLM arriving at the file immediately understand what the file is and how to use it — keep the header short, plain-language, and friendly.
 
 Recommended guidance for the instructive header:
 
@@ -54,7 +54,7 @@ Suggested phrasing (per-instance file):
 
 > This file is a REPL presented as a chat between you and a live page. Add a fenced JavaScript block at the bottom and the connected page will run it; the result will be printed below. Please do not edit server-inserted replies or the append anchor.
 
-Suggested phrasing (master `debug.md`):
+Suggested phrasing (master `daebug.md`):
 
 > Master registry of connected pages and states. Do not edit server-updated lines here; open a page's per-instance log to run code against that page.
 
@@ -361,9 +361,9 @@ Timeout behaviour:
 
 ## Server control commands
 
-The master registry file (`debug.md`) supports special control command that affect server operation (for normal HTTP server only one command currently):
+The master registry file (`daebug.md`) supports special control command that affect server operation (for normal HTTP server only one command currently):
 
-- **Shutdown command**: Writing a full line containing exactly `%%SHUTDOWN%%` to `debug.md` will cause the server to exit gracefully. This is useful during debugging and iteration when a clean server restart is needed without terminating random Node.js processes.
+- **Shutdown command**: Writing a full line containing exactly `%%SHUTDOWN%%` to `daebug.md` will cause the server to exit gracefully. This is useful during debugging and iteration when a clean server restart is needed without terminating random Node.js processes.
 
 ## Security and safety
 
@@ -400,11 +400,11 @@ Reply (completed):
 
 - Add helpers:
   - `pathForPage(page)` → absolute path to per-instance file
-  - `ensureDebugDir()` → create `debug/` dir if missing
+  - `ensureDebugDir()` → create `daebug/` dir if missing
 - Change FileHarness behaviour:
-  - Continue to update `debug.md` master registry periodically
+  - Continue to update `daebug.md` master registry periodically
   - Parse and watch per-instance files for requests (debounced)
-  - Write replies to the corresponding per-instance file instead of a single `DEBUG_FILE`
+  - Write replies to the corresponding per-instance file instead of a single `DAEBUG_FILE`
 
 ---
 

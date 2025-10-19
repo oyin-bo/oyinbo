@@ -329,8 +329,8 @@ const check = () => {
 ```
 [daebug] serving /Users/alice/my-project
 [daebug] http://localhost:8342/
-[daebug] debug registry: debug.md
-[daebug] watching: debug/*.md
+[daebug] debug registry: daebug.md
+[daebug] watching: daebug/*.md
 ```
 
 **Current Reality** (`js/server.js` & `js/watcher.js`):
@@ -350,8 +350,8 @@ const server = createServer(...);
 server.listen(port, () => {
   console.log(`[daeb.ug] serving ${root}`);
   console.log(`[daeb.ug] http://localhost:${port}/`);
-  console.log(`[daeb.ug] debug registry: debug.md`);
-  console.log(`[daeb.ug] watching: debug/*.md`);
+  console.log(`[daeb.ug] debug registry: daebug.md`);
+  console.log(`[daeb.ug] watching: daebug/*.md`);
 });
 ```
 
@@ -501,7 +501,7 @@ function run() {
 
 **Gap Analysis**:
 - Without `bin` field, `npm` won't create an executable wrapper
-- Without `files` field, unnecessary files (debug/, docs/) included in package
+- Without `files` field, unnecessary files (daebug/, docs/) included in package
 - Without `engines` field, older Node.js may attempt install
 
 ---

@@ -2,8 +2,8 @@
 import { join, relative } from 'node:path';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 
-const DEBUG_DIR = 'debug';
-const MASTER_FILE = 'debug.md';
+const DAEBUG_DIR = 'daebug';
+const MASTER_FILE = 'daebug.md';
 
 const startTime = new Date();
 
@@ -43,7 +43,7 @@ export function getOrCreate(root, name, url) {
   let page = pages.get(name);
   if (!page) {
     const sanitized = sanitizeName(name);
-    const dir = join(root, DEBUG_DIR);
+    const dir = join(root, DAEBUG_DIR);
     let chosenFilename = null;
     
     if (existsSync(dir)) {
@@ -62,7 +62,7 @@ export function getOrCreate(root, name, url) {
       } catch {}
     }
 
-    const file = join(root, DEBUG_DIR, chosenFilename || `${sanitized}.md`);
+    const file = join(root, DAEBUG_DIR, chosenFilename || `${sanitized}.md`);
     page = { name, url, file, state: 'idle', lastSeen: Date.now() };
     pages.set(name, page);
     

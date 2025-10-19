@@ -1,7 +1,7 @@
 {
   "name": "daeb.ug",
   "description": "👾 Daebug Remote REPL",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "type": "module",
   "main": "index.js",
   "bin": {
@@ -18,7 +18,7 @@
     "type": "git",
     "url": "git+https://github.com/oyin-bo/daeb.ug"
   },
-  "keywords": ["debug", "repl", "rpc"],
+  "keywords": ["debug", "daebug", "repl", "rpc"],
   "author": "",
   "license": "MIT",
   "homepage": "https://daeb.ug"

@@ -39,7 +39,7 @@ Current software development and quality assurance processes are hindered by the
 
 | Transport Mechanism | Primary Format | Key Feature |
 | :---- | :---- | :---- |
-| **Primary (History/State)** | **Markdown Chat Log (debug.md)** | **Persistence, Context, and LLM Edit Stability.** Serves as the authoritative, auditable session history and primary memory for the LLM. |
+| **Primary (History/State)** | **Markdown Chat Log (daebug.md)** | **Persistence, Context, and LLM Edit Stability.** Serves as the authoritative, auditable session history and primary memory for the LLM. |
 | **Secondary (Scripting/Admin)** | **HTTP RESTful API** | Immediate, low-latency control for scripting, system status queries, and administrative meta-commands. |
 | **Advanced (Future)** | **Agent Status Log (ASL) / S-Expression Protocol (LSP)** | **Structured, Machine-Readability.** Dedicated JSON/S-expression output for rapid, reliable state ingestion by the LLM and symbolic control commands. |
 

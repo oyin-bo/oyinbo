@@ -6,7 +6,7 @@ This document describes a design and implementation plan for using Rust only as 
 
 High-level goals
 
-- Provide a stable Rust server that manages the per-instance file lifecycle, master registry (`debug.md`), and HTTP endpoints used by browser shims and remote realms.
+- Provide a stable Rust server that manages the per-instance file lifecycle, master registry (`daebug.md`), and HTTP endpoints used by browser shims and remote realms.
 - Implement worker registration, heartbeat handling, job dispatch, result ingestion, background-event buffering, and safe atomic file writes in Rust.
 - Expose a compact, well-documented HTTP API that browser/client JS shims and Node clients can use for polling, posting jobs/results, reading/writing per-instance logs, and registering worker realms.
 - Orchestrate the Remote Test Runner lifecycle by coordinating module load requests and result collection, but delegate actual module import and test execution to the host clients.
@@ -20,7 +20,7 @@ Why Rust-only orchestration is a good fit
 
 Core responsibilities for the Rust server
 
-1. Master registry management (`debug.md`)
+1. Master registry management (`daebug.md`)
    - Maintain, update, and atomically write the registry file. Track connected realms, last heartbeat, state (idle/executing/failed), and pointers to per-instance files.
 
 2. Per-instance log management (per `docs/1-jsrepl.md`)
@@ -58,7 +58,7 @@ HTTP API surface (suggested endpoints)
 - GET  /health
   - Server health and simple diagnostics.
 
-- GET  /debug.md
+- GET  /daebug.md
   - Return current master registry (for convenience / browser fetch)
 
 - GET  /instances/{name}

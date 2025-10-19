@@ -106,8 +106,8 @@ test('all returns array of pages after creation', () => {
 test('getOrCreate finds existing per-instance file with footer', () => {
   const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
-    const debugDir = join(root, 'debug');
-    mkdirSync(debugDir, { recursive: true });
+    const daebugDir = join(root, 'daebug');
+    mkdirSync(daebugDir, { recursive: true });
     
     const content = [
       'Test file',
@@ -115,7 +115,7 @@ test('getOrCreate finds existing per-instance file with footer', () => {
       ''
     ].join('\n');
     
-    writeFileSync(join(debugDir, 'test-page.md'), content, 'utf8');
+    writeFileSync(join(daebugDir, 'test-page.md'), content, 'utf8');
     
     const page = registry.getOrCreate(root, 'test-page', 'http://localhost');
     assert.ok(page.file.endsWith('test-page.md'));
@@ -138,7 +138,7 @@ test('init creates master file when not exists', () => {
   const root = mkdtempSync(join(tmpdir(), 'daebug-test-'));
   try {
     registry.init(root);
-    const masterPath = join(root, 'debug.md');
+    const masterPath = join(root, 'daebug.md');
     assert.ok(existsSync(masterPath));
   } finally {
     rmSync(root, { recursive: true, force: true });

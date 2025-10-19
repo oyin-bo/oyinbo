@@ -55,9 +55,9 @@ export function watchPage(root, page) {
   if (existsSync(page.file)) {
     watch(page.file, debounceCheck);
   } else {
-    const debugDir = page.file.replace(/\\[^\\]+$/, '');
+    const daebugDir = page.file.replace(/\\[^\\]+$/, '');
     try {
-      watch(debugDir || '.', (eventType, filename) => {
+      watch(daebugDir || '.', (eventType, filename) => {
         if (filename === page.file.split(/\\|\//).pop()) debounceCheck();
       });
     } catch {}
@@ -66,17 +66,17 @@ export function watchPage(root, page) {
 }
 
 /**
- * Watch debug.md for %%SHUTDOWN%% marker and shutdown server if found
+ * Watch daebug.md for %%SHUTDOWN%% marker and shutdown server if found
  * @param {string} root
  */
 export function watchForRestart(root) {
-  const debugFile = join(root, 'debug.md');
+  const daebugFile = join(root, 'daebug.md');
   let lastContent = '';
   
   const check = () => {
     try {
-      if (!existsSync(debugFile)) return;
-      const text = readFileSync(debugFile, 'utf8');
+      if (!existsSync(daebugFile)) return;
+      const text = readFileSync(daebugFile, 'utf8');
       if (text === lastContent) return;
       lastContent = text;
       
@@ -86,13 +86,13 @@ export function watchForRestart(root) {
       
       if (shutdownLine !== -1) {
         const shutdownRequestedAt = new Date();
-        console.log('👾' + shutdownRequestedAt.toLocaleTimeString() + ' %%SHUTDOWN%% detected in debug.md - shutting down server...');
+        console.log('👾' + shutdownRequestedAt.toLocaleTimeString() + ' %%SHUTDOWN%% detected in daebug.md - shutting down server...');
         
-        // Update debug.md with server down message
+        // Update daebug.md with server down message
         const downMessage = `# Server has been shut down ${shutdownRequestedAt.toLocaleTimeString()}
 
 > The server has been shut down with an explicit command. Run \`npm start\` to restart it.`;
-        writeFileSync(debugFile, downMessage, 'utf8');
+        writeFileSync(daebugFile, downMessage, 'utf8');
         
         // Clean shutdown
         console.log('👾Server shutdown complete');
@@ -109,8 +109,8 @@ export function watchForRestart(root) {
     timers.set('__restart__', setTimeout(check, DEBOUNCE_MS));
   };
   
-  if (existsSync(debugFile)) {
-    watch(debugFile, debounceCheck);
+  if (existsSync(daebugFile)) {
+    watch(daebugFile, debounceCheck);
     check(); // Initial check
   }
 }

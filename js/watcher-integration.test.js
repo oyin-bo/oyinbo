@@ -108,7 +108,7 @@ describe('watchForRestart shutdown marker handling', () => {
   });
 
   test('finds %%SHUTDOWN%% on its own line', () => {
-    const debugFile = join(tempDir, 'debug.md');
+    const daebugFile = join(tempDir, 'daebug.md');
     const content = [
       '# Debug',
       '',
@@ -119,7 +119,7 @@ describe('watchForRestart shutdown marker handling', () => {
       'More content'
     ].join('\n');
     
-    writeFileSync(debugFile, content, 'utf8');
+    writeFileSync(daebugFile, content, 'utf8');
     const lines = content.split('\n');
     const shutdownLine = lines.findIndex(line => line.trim() === '%%SHUTDOWN%%');
     
@@ -212,7 +212,7 @@ describe('watchPage file watching logic', () => {
 
   test('watches parent directory for non-existent files', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('watch(debugDir ||'));
+    assert.ok(watcherContent.includes('watch(daebugDir ||'));
   });
 
   test('extracts directory from file path', () => {
@@ -306,9 +306,9 @@ describe('watchPage error handling', () => {
 });
 
 describe('watchForRestart file watching', () => {
-  test('watches debug.md in root', () => {
+  test('watches daebug.md in root', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('const debugFile = join(root, \'debug.md\')'));
+    assert.ok(watcherContent.includes('const daebugFile = join(root, \'daebug.md\')'));
   });
 
   test('uses debounce for restart checks', () => {
@@ -362,14 +362,14 @@ describe('watchForRestart shutdown handling', () => {
 });
 
 describe('watcher error handling comprehensive', () => {
-  test('catches debug.md check errors', () => {
+  test('catches daebug.md check errors', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
     assert.ok(watcherContent.includes('hutdown check error:'));
   });
 
-  test('handles missing debug.md gracefully', () => {
+  test('handles missing daebug.md gracefully', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('if (!existsSync(debugFile)) return'));
+    assert.ok(watcherContent.includes('if (!existsSync(daebugFile)) return'));
   });
 
   test('watchPage returns early on missing file', () => {

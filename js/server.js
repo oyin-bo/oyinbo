@@ -94,7 +94,9 @@ export function start(root, port) {
 function processImportMapHTML(html, root) {
   const oyinboMappings = {
     'node:test': '/oyinbo/test-runner.js',
-    'node:assert': '/oyinbo/assert.js'
+    'node:assert': '/oyinbo/assert.js',
+    '@oyinbo/test': '/oyinbo/test-runner.js',
+    '@oyinbo/assert': '/oyinbo/assert.js'
   };
   
   // Check for inline import maps
@@ -191,7 +193,9 @@ function injectClientScript(html) {
 function mergeImportMaps(existing) {
   const oyinboMappings = {
     'node:test': '/oyinbo/test-runner.js',
-    'node:assert': '/oyinbo/assert.js'
+    'node:assert': '/oyinbo/assert.js',
+    '@oyinbo/test': '/oyinbo/test-runner.js',
+    '@oyinbo/assert': '/oyinbo/assert.js'
   };
   
   return {

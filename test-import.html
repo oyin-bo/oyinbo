@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Import Map Test</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "node:test": "/oyinbo/test-runner.js",
+      "node:assert": "/oyinbo/assert.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>Import Map Test</h1>
+  <div id="output"></div>
+  
+  <script type="module">
+    const output = document.getElementById('output');
+    
+    // Test static import
+    output.innerHTML += '<h2>Static Import Test</h2>';
+    try {
+      const { test } = await import('node:test');
+      output.innerHTML += '<p>✅ Static import of node:test worked!</p>';
+      output.innerHTML += '<p>test type: ' + typeof test + '</p>';
+    } catch (e) {
+      output.innerHTML += '<p>❌ Static import failed: ' + e.message + '</p>';
+    }
+    
+    // Test dynamic import (like REPL would use)
+    output.innerHTML += '<h2>Dynamic Import Test</h2>';
+    try {
+      const result = await import('node:test');
+      output.innerHTML += '<p>✅ Dynamic import of node:test worked!</p>';
+      output.innerHTML += '<p>Result: ' + typeof result + '</p>';
+    } catch (e) {
+      output.innerHTML += '<p>❌ Dynamic import failed: ' + e.message + '</p>';
+    }
+  </script>
+</body>
+</html>

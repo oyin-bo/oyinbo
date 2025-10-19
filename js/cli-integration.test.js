@@ -31,10 +31,10 @@ function spawnOyinbo(args, cwd) {
       stderr += data.toString();
     });
     
-    // Kill after 2 seconds
+    // Kill after 1 second (sufficient for server startup)
     setTimeout(() => {
       proc.kill();
-    }, 2000);
+    }, 1000);
     
     proc.on('close', (code) => {
       resolve({ stdout, stderr, exitCode: code || 0 });
@@ -73,7 +73,7 @@ test('CLI integration', async (t) => {
   });
   
   await t.test('shows help message', async () => {
-    const proc = spawn('node', [INDEX_JS, '--help']);
+    const proc = spawn(process.execPath, [INDEX_JS, '--help']);
     let stdout = '';
     
     proc.stdout.on('data', (data) => {
@@ -88,7 +88,7 @@ test('CLI integration', async (t) => {
   });
   
   await t.test('shows version', async () => {
-    const proc = spawn('node', [INDEX_JS, '--version']);
+    const proc = spawn(process.execPath, [INDEX_JS, '--version']);
     let stdout = '';
     
     proc.stdout.on('data', (data) => {
@@ -101,7 +101,7 @@ test('CLI integration', async (t) => {
   });
   
   await t.test('rejects non-existent root', async () => {
-    const proc = spawn('node', [INDEX_JS, '--root=/nonexistent/path/xyz']);
+    const proc = spawn(process.execPath, [INDEX_JS, '--root=/nonexistent/path/xyz']);
     let stderr = '';
     
     proc.stderr.on('data', (data) => {

@@ -1,7 +1,9 @@
 // @ts-check
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { clockFmt, durationFmt, findFooter, findLastFencedBlock, findAgentHeaderAbove, buildBlocks } from './writer.js';
+import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { clockFmt, durationFmt, findFooter, findLastFencedBlock, findAgentHeaderAbove, buildBlocks, formatBackgroundEvent, writeDiagnostic } from './writer.js';
 
 // clockFmt tests
 test('clockFmt pads single digit hours', () => {
@@ -228,4 +230,386 @@ test('buildBlocks handles string value', () => {
   const result = { ok: true, value: 'hello' };
   const blocks = buildBlocks(result);
   assert.strictEqual(blocks[0], '```JSON\nhello\n```');
+});
+
+// formatBackgroundEvent tests
+test('formatBackgroundEvent formats error with window.onerror source', () => {
+  const event = {
+    type: 'error',
+    source: 'window.onerror',
+    ts: '10:30:45',
+    message: 'Uncaught Error',
+    stack: 'Error: Uncaught Error\n    at line 10'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```window.onerror\nError: Uncaught Error\n    at line 10\n```');
+});
+
+test('formatBackgroundEvent formats error with unhandledrejection source', () => {
+  const event = {
+    type: 'error',
+    source: 'unhandledrejection',
+    ts: '10:30:45',
+    message: 'Promise rejected',
+    stack: 'Error: Promise rejected\n    at async line 20'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```unhandledrejection\nError: Promise rejected\n    at async line 20\n```');
+});
+
+test('formatBackgroundEvent formats error without stack', () => {
+  const event = {
+    type: 'error',
+    source: 'window.onerror',
+    ts: '10:30:45',
+    message: 'Simple error',
+    stack: ''
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```window.onerror\nSimple error\n```');
+});
+
+test('formatBackgroundEvent formats error without source', () => {
+  const event = {
+    type: 'error',
+    ts: '10:30:45',
+    message: 'Generic error',
+    stack: 'Error: Generic error'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```Error\nError: Generic error\n```');
+});
+
+test('formatBackgroundEvent formats console.log with JSON content', () => {
+  const event = {
+    type: 'console',
+    level: 'log',
+    ts: '10:30:45',
+    message: '{"x":1,"y":2}'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```JSON console.log\n{"x":1,"y":2}\n```');
+});
+
+test('formatBackgroundEvent formats console.log with text content', () => {
+  const event = {
+    type: 'console',
+    level: 'log',
+    ts: '10:30:45',
+    message: 'Hello world'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```Text console.log\nHello world\n```');
+});
+
+test('formatBackgroundEvent formats console.info', () => {
+  const event = {
+    type: 'console',
+    level: 'info',
+    ts: '10:30:45',
+    message: 'Information message'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```Text console.info\nInformation message\n```');
+});
+
+test('formatBackgroundEvent formats console.warn', () => {
+  const event = {
+    type: 'console',
+    level: 'warn',
+    ts: '10:30:45',
+    message: 'Warning message'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```Text console.warn\nWarning message\n```');
+});
+
+test('formatBackgroundEvent formats console.error', () => {
+  const event = {
+    type: 'console',
+    level: 'error',
+    ts: '10:30:45',
+    message: 'Error message'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```Error console.error\nError message\n```');
+});
+
+test('formatBackgroundEvent formats console without level', () => {
+  const event = {
+    type: 'console',
+    ts: '10:30:45',
+    message: 'Default message'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```Text console.log\nDefault message\n```');
+});
+
+test('formatBackgroundEvent handles unknown event type', () => {
+  const event = {
+    type: 'unknown',
+    ts: '10:30:45',
+    message: 'Strange event'
+  };
+  const result = formatBackgroundEvent(event);
+  assert.strictEqual(result, '```Text\nStrange event\n```');
+});
+
+// buildBlocks with backgroundEvents tests
+test('buildBlocks with backgroundEvents array', () => {
+  const result = {
+    ok: true,
+    value: 42,
+    backgroundEvents: [
+      { type: 'console', level: 'log', ts: '10:30:45', message: 'test' }
+    ]
+  };
+  const blocks = buildBlocks(result);
+  assert.strictEqual(blocks.length, 2);
+  assert.strictEqual(blocks[0], '```JSON\n42\n```');
+  assert.match(blocks[1], /console\.log/);
+});
+
+test('buildBlocks with multiple backgroundEvents', () => {
+  const result = {
+    ok: true,
+    value: 'ok',
+    backgroundEvents: [
+      { type: 'console', level: 'log', ts: '10:30:45', message: 'first' },
+      { type: 'error', source: 'window.onerror', ts: '10:30:46', message: 'error', stack: 'Error: error' },
+      { type: 'console', level: 'warn', ts: '10:30:47', message: 'warning' }
+    ]
+  };
+  const blocks = buildBlocks(result);
+  assert.strictEqual(blocks.length, 4);
+  assert.match(blocks[1], /console\.log/);
+  assert.match(blocks[2], /window\.onerror/);
+  assert.match(blocks[3], /console\.warn/);
+});
+
+test('buildBlocks truncates backgroundEvents when more than 10', () => {
+  const events = Array.from({ length: 15 }, (_, i) => ({
+    type: 'console',
+    level: 'log',
+    ts: '10:30:45',
+    message: `Message ${i}`
+  }));
+  const result = { ok: true, value: 1, backgroundEvents: events };
+  const blocks = buildBlocks(result);
+  
+  // Should have: 1 result + 2 first events + 1 ellipsis + 8 last events = 12 blocks
+  assert.strictEqual(blocks.length, 12);
+  assert.match(blocks[1], /Message 0/);
+  assert.match(blocks[2], /Message 1/);
+  assert.match(blocks[3], /5 more background events omitted/);
+  assert.match(blocks[4], /Message 7/);
+  assert.match(blocks[11], /Message 14/);
+});
+
+test('buildBlocks with empty backgroundEvents array', () => {
+  const result = { ok: true, value: 1, backgroundEvents: [] };
+  const blocks = buildBlocks(result);
+  assert.strictEqual(blocks.length, 1);
+});
+
+test('buildBlocks prefers backgroundEvents over legacy errors', () => {
+  const result = {
+    ok: true,
+    value: 1,
+    backgroundEvents: [
+      { type: 'console', level: 'log', ts: '10:30:45', message: 'new format' }
+    ],
+    errors: ['old format error']
+  };
+  const blocks = buildBlocks(result);
+  assert.strictEqual(blocks.length, 2);
+  assert.match(blocks[1], /new format/);
+  assert.ok(!blocks.some(b => b.includes('old format')));
+});
+
+// writeDiagnostic tests
+describe('writeDiagnostic', () => {
+  const testFile = join(process.cwd(), 'test-diagnostic-temp.md');
+  
+  test('creates file with diagnostic when file does not exist', () => {
+    if (existsSync(testFile)) unlinkSync(testFile);
+    
+    writeDiagnostic(testFile, 'Test diagnostic message');
+    
+    assert.ok(existsSync(testFile));
+    const content = readFileSync(testFile, 'utf8');
+    assert.match(content, /# Worker Diagnostics/);
+    assert.match(content, /Test diagnostic message/);
+    assert.match(content, /Write code in a fenced JS block/);
+    
+    unlinkSync(testFile);
+  });
+  
+  test('appends diagnostic to existing file', () => {
+    const initial = [
+      '# Test File',
+      '',
+      '> **page** to agent at 10:00:00',
+      '```JSON',
+      '42',
+      '```',
+      '',
+      '----------------------------------------------------------------------',
+      '> Write code in a fenced JS block below to execute against this page.',
+      '',
+      ''
+    ].join('\n');
+    
+    writeFileSync(testFile, initial, 'utf8');
+    writeDiagnostic(testFile, 'Worker timeout detected');
+    
+    const content = readFileSync(testFile, 'utf8');
+    assert.match(content, /Worker timeout detected/);
+    assert.match(content, /System.*at \d{2}:\d{2}:\d{2}/);
+    
+    unlinkSync(testFile);
+  });
+  
+  test('inserts diagnostic above footer', () => {
+    const initial = [
+      '# Test File',
+      '',
+      '----------------------------------------------------------------------',
+      '> Write code in a fenced JS block below to execute against this page.',
+      '',
+      ''
+    ].join('\n');
+    
+    writeFileSync(testFile, initial, 'utf8');
+    writeDiagnostic(testFile, 'Restart attempt 3');
+    
+    const content = readFileSync(testFile, 'utf8');
+    const lines = content.split('\n');
+    const footerIdx = lines.findIndex(l => l.includes('Write code in a fenced'));
+    const diagnosticIdx = lines.findIndex(l => l.includes('Restart attempt 3'));
+    
+    assert.ok(diagnosticIdx >= 0);
+    assert.ok(footerIdx >= 0);
+    assert.ok(diagnosticIdx < footerIdx, 'Diagnostic should be above footer');
+    
+    unlinkSync(testFile);
+  });
+});
+
+describe('writeReply exports', () => {
+  test('writeReply is exported', async () => {
+    const writer = await import('./writer.js');
+    assert.equal(typeof writer.writeReply, 'function');
+  });
+
+  test('writeExecuting is exported', async () => {
+    const writer = await import('./writer.js');
+    assert.equal(typeof writer.writeExecuting, 'function');
+  });
+});
+
+describe('writer edge cases', () => {
+  test('clockFmt handles midnight', () => {
+    const midnight = new Date('2024-01-01T00:00:00');
+    const result = clockFmt(midnight.getTime());
+    assert.equal(result, '00:00:00');
+  });
+
+  test('clockFmt handles noon', () => {
+    const noon = new Date('2024-01-01T12:00:00');
+    const result = clockFmt(noon.getTime());
+    assert.equal(result, '12:00:00');
+  });
+
+  test('clockFmt handles 23:59:59', () => {
+    const almostMidnight = new Date('2024-01-01T23:59:59');
+    const result = clockFmt(almostMidnight.getTime());
+    assert.equal(result, '23:59:59');
+  });
+
+  test('durationFmt handles negative values gracefully', () => {
+    const result = durationFmt(-100);
+    assert.ok(result.includes('-') || result.includes('100'));
+  });
+
+  test('findFooter handles lines with footer substring', () => {
+    const lines = [
+      'This line mentions: Write code in a fenced JS block',
+      'But this is the real footer:',
+      '> Write code in a fenced JS block below to execute against this page.'
+    ];
+    const idx = findFooter(lines);
+    assert.equal(idx, 2);
+  });
+
+  test('findLastFencedBlock handles nested fences in comment', () => {
+    const lines = [
+      '// Example: ```js',
+      '```js',
+      'const x = 1;',
+      '```'
+    ];
+    const result = findLastFencedBlock(lines);
+    assert.deepEqual(result, { start: 1, end: 3 });
+  });
+
+  test('findAgentHeaderAbove handles multiple blank lines', () => {
+    const lines = [
+      '> **agent** to page',
+      '',
+      '',
+      '',
+      '```js',
+      'code',
+      '```'
+    ];
+    const idx = findAgentHeaderAbove(lines, 4);
+    assert.equal(idx, 0);
+  });
+
+  test('buildBlocks handles boolean false value', () => {
+    const result = { ok: true, value: false };
+    const blocks = buildBlocks(result);
+    assert.equal(blocks.length, 1);
+    assert.ok(blocks[0].includes('false'));
+  });
+
+  test('buildBlocks handles number zero value', () => {
+    const result = { ok: true, value: 0 };
+    const blocks = buildBlocks(result);
+    assert.equal(blocks.length, 1);
+    assert.ok(blocks[0].includes('0'));
+  });
+
+  test('buildBlocks handles empty string value', () => {
+    const result = { ok: true, value: '' };
+    const blocks = buildBlocks(result);
+    assert.equal(blocks.length, 1);
+    assert.ok(blocks[0].includes('JSON'));
+  });
+
+  test('formatBackgroundEvent handles error with very long stack', () => {
+    const event = {
+      type: 'error',
+      source: 'window.onerror',
+      ts: '12:00:00',
+      message: 'Error',
+      stack: 'a'.repeat(10000)
+    };
+    const result = formatBackgroundEvent(event);
+    assert.ok(result.includes('```'));
+    assert.ok(result.length > 100);
+  });
+
+  test('formatBackgroundEvent handles console with multiline message', () => {
+    const event = {
+      type: 'console',
+      level: 'log',
+      ts: '12:00:00',
+      message: 'Line 1\nLine 2\nLine 3'
+    };
+    const result = formatBackgroundEvent(event);
+    assert.ok(result.includes('Line 1'));
+    assert.ok(result.includes('Line 2'));
+  });
 });

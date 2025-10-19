@@ -87,7 +87,7 @@ test('parseRequest returns complete object for footer-based request', () => {
     agent: 'bob',
     target: 'page-1',
     time: '09:15:30',
-    code: '1 + 1\n',
+    code: '1 + 1',
     hasFooter: true
   });
 });

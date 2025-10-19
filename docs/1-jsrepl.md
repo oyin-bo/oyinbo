@@ -142,6 +142,26 @@ Important rules:
 - Execution and result injection:
   - The code in each fenced block sequentially is executed by the realm and the result (or error) is injected directly beneath that fenced block in the per-instance file using the normal reply format (reply header + fenced JSON/Text/Error block).
   - Any commentary or Markdown that was before or after the executed code block remains in place and is not removed by the server.
+
+## Evaluation semantics and limitations
+
+The REPL uses a two-stage evaluation strategy to handle both expressions and statements:
+
+1. **Expression mode (first attempt)**: The code is wrapped as `return (<code>)` inside an AsyncFunction. This works for expressions and allows the REPL to return their values naturally.
+
+2. **Statement mode (fallback)**: If expression parsing fails, the code is executed as statements in an AsyncFunction body without wrapping. This allows multi-statement code blocks to execute successfully.
+
+**Limitation**: When statement mode is used (multi-line code, blocks with semicolons, etc.), the REPL executes the code but **does not return the value of the last expression**. This is a trade-off for supporting complex code blocks without implementing full AST parsing.
+
+**Examples**:
+- `42` → returns `42` (expression mode)
+- `console.log('hello'); 'world'` → executes both statements but returns `undefined` (statement mode)
+- `let x = 5; x * 2` → executes but returns `undefined` (statement mode)
+
+To get a return value from multi-statement code, explicitly use a `return` statement or wrap the code in an IIFE:
+```js
+(() => { console.log('hello'); return 'world'; })()
+```
 - Partial/incomplete fences: remain drafts and are ignored (not dispatched). Editors may continue to edit the chunk until fences are closed.
 
 ## Parser heuristics

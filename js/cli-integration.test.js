@@ -64,8 +64,8 @@ test('CLI integration', async (t) => {
   });
   
   await t.test('accepts custom port', async () => {
-    const result = await spawnOyinbo(['--port=8765'], tmpDir);
-    assert(result.stdout.includes('http://localhost:8765'), 'Should use custom port');
+    const result = await spawnOyinbo(['--port=58765'], tmpDir);
+    assert(result.stdout.includes('http://localhost:58765'), 'Should use custom port');
   });
   
   await t.test('shows help message', async () => {

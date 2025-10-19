@@ -207,7 +207,8 @@ export async function run() {
     watcher.watchForRestart(root);
   } catch (err) {
     if (err.code === 'EADDRINUSE') {
-      console.error(`[oyinbo] error: could not bind to port ${port}`);
+      const failedPort = args.port || port;
+      console.error(`[oyinbo] error: could not bind to port ${failedPort}`);
       console.error(`Try --port=<number> to specify a different port.`);
       process.exit(1);
     }

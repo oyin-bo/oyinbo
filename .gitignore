@@ -3,3 +3,4 @@
 /debug/
 .DS_Store
 /.playwright-mcp/
+/tmp-test-*/

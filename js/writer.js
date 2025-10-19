@@ -54,6 +54,32 @@ export function writeDiagnostic(file, message) {
   writeFileSync(file, output, 'utf8');
 }
 
+/**
+ * Write test progress markdown to a page's chat log
+ * @param {string} file - Path to the page's chat file
+ * @param {string} markdown - Test progress markdown
+ */
+export function writeTestProgress(file, markdown) {
+  if (!existsSync(file)) {
+    const content = `${markdown}\n\n${FOOTER}`;
+    writeFileSync(file, content, 'utf8');
+    return;
+  }
+  
+  const lines = readFileSync(file, 'utf8').split('\n');
+  const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
+  
+  const output = [
+    ...lines.slice(0, footerIdx),
+    '',
+    markdown,
+    '',
+    FOOTER
+  ].join('\n');
+  
+  writeFileSync(file, output, 'utf8');
+}
+
 // Export helper functions for testing
 export { clockFmt, durationFmt, findFooter, findLastFencedBlock, findAgentHeaderAbove, buildBlocks, formatBackgroundEvent };
 

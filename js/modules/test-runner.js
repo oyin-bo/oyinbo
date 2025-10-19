@@ -216,6 +216,99 @@ export async function oyinboRunTests(options = {}) {
 }
 
 /**
+ * Node.js-compatible run() function with test discovery and streaming
+ * @param {object} options
+ * @returns {Promise<object>}
+ */
+export async function run(options = {}) {
+  const files = options.files || ['**/*.test.js'];
+  const realmId = getRealmId();
+  
+  try {
+    // Discover test files from server
+    let testFiles = [];
+    
+    if (typeof fetch !== 'undefined') {
+      const response = await fetch('/oyinbo/discover-tests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Test discovery failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      testFiles = data.files || [];
+      
+      console.log(`[test-runner] discovered ${testFiles.length} test files`);
+    } else {
+      // Fallback if fetch not available (shouldn't happen in browser)
+      testFiles = Array.isArray(files) ? files : [files];
+    }
+    
+    if (testFiles.length === 0) {
+      console.warn('[test-runner] no test files found');
+      return { passed: 0, failed: 0, skipped: 0, total: 0, duration: 0, tests: [] };
+    }
+    
+    // Create streaming handler
+    let lastProgressTime = Date.now();
+    const progressDebounceMs = 2000;
+    
+    const streamProgress = async (/** @type {any} */ progressData) => {
+      const now = Date.now();
+      if (now - lastProgressTime < progressDebounceMs && !progressData.complete) {
+        return; // Debounce
+      }
+      lastProgressTime = now;
+      
+      try {
+        await fetch('/oyinbo/test-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            realmName: realmId,
+            ...progressData
+          })
+        });
+      } catch (err) {
+        console.error('[test-runner] failed to stream progress:', err);
+      }
+    };
+    
+    // Run tests with oyinboRunTests
+    const startTime = Date.now();
+    const results = await oyinboRunTests({ files: testFiles, ...options });
+    
+    // Stream final results
+    await streamProgress({
+      complete: true,
+      totals: {
+        pass: results.passed,
+        fail: results.failed,
+        skip: results.skipped,
+        total: results.total
+      },
+      duration: results.duration,
+      recentTests: results.tests.slice(-10).map(t => ({
+        name: t.name,
+        suite: t.suite,
+        status: t.skipped ? 'skip' : (t.passed ? 'pass' : 'fail'),
+        duration: t.duration,
+        error: t.error
+      }))
+    });
+    
+    return results;
+  } catch (err) {
+    console.error('[test-runner] run() failed:', err);
+    throw err;
+  }
+}
+
+/**
  * AssertionError - matches Node.js assert module
  */
 export class AssertionError extends Error {

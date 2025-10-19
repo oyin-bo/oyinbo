@@ -1,7 +1,7 @@
 {
   "name": "daeb.ug",
   "description": "👾 Daebug Remote REPL",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oyin-bo/daebug"
+    "url": "git+https://github.com/oyin-bo/daeb.ug"
   },
   "keywords": ["debug", "repl", "rpc"],
   "author": "",

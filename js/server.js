@@ -106,7 +106,8 @@ export function start(root, port) {
   server.listen(port, () => console.log(
     'serving  ' + root +
     '  👉  http://localhost:' + port + '/\n' +
-    '============================================================================='
+    '=================================================================================\n' +
+    '   📃 daebug.md  registry'
   ));
 }
 

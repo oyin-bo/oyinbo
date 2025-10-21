@@ -10,6 +10,7 @@ import * as watcher from './watcher.js';
 import { clientScript } from './client.js';
 import { testRunnerModule, assertModule, workerBootstrapModule } from './modules-loader.js';
 import { installShutdownHandlers } from './shutdown.js';
+import { formatTestProgress as formatTestProgressTemplate } from './test.template.js';
 
 /** @type {Record<string, string>} */
 const MIME = {
@@ -498,57 +499,10 @@ function matchPattern(path, pattern) {
 }
 
 /**
- * Format test progress as markdown
+ * Format test progress as markdown - delegates to template function
  * @param {any} payload
  * @returns {string}
  */
 function formatTestProgress(payload) {
-  const { totals, duration, recentTests, allTests, complete } = payload;
-  const lines = [];
-  
-  if (complete) {
-    lines.push(`## Test Results: ${totals.pass} pass, ${totals.fail} fail, ${totals.skip} skip (${duration}ms)`);
-  } else {
-    lines.push(`## Test Progress: ${totals.pass}/${totals.total} pass, ${totals.fail} fail (${duration}ms)`);
-  }
-  lines.push('');
-  
-  // For final results, use allTests; for progress updates, use recentTests
-  const testsToShow = complete && allTests ? allTests : recentTests;
-  
-  if (testsToShow && testsToShow.length > 0) {
-    // Separate failed, skipped, and passed tests for better visibility
-    const failedTests = testsToShow.filter(/** @type {any} */ t => t.status === 'fail');
-    const skippedTests = testsToShow.filter(/** @type {any} */ t => t.status === 'skip');
-    const passedTests = testsToShow.filter(/** @type {any} */ t => t.status === 'pass');
-    
-    // Show failures first (most important)
-    for (const test of failedTests) {
-      const suite = test.suite ? `${test.suite} > ` : '';
-      const ts = test.fullTs || (test.completedAt ? writer.clockFmt(test.completedAt) : '');
-      lines.push(`✗ ${suite}${test.name} ${ts} (${test.duration}ms)`);
-      
-      if (test.error) {
-        lines.push('  ```');
-        lines.push('  ' + test.error.replace(/\n/g, '\n  '));
-        lines.push('  ```');
-      }
-    }
-    
-    // Show skipped tests
-    for (const test of skippedTests) {
-      const suite = test.suite ? `${test.suite} > ` : '';
-      const ts = test.fullTs || (test.completedAt ? writer.clockFmt(test.completedAt) : '');
-      lines.push(`○ ${suite}${test.name} ${ts} (${test.duration}ms)`);
-    }
-    
-    // Show passed tests
-    for (const test of passedTests) {
-      const suite = test.suite ? `${test.suite} > ` : '';
-      const ts = test.fullTs || (test.completedAt ? writer.clockFmt(test.completedAt) : '');
-      lines.push(`✓ ${suite}${test.name} ${ts} (${test.duration}ms)`);
-    }
-  }
-  
-  return lines.join('\n');
+  return formatTestProgressTemplate(payload);
 }

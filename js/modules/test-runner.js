@@ -102,13 +102,34 @@ export function describe(name, fn) {
 export const it = test;
 
 /**
- * Run registered tests
- * @param {any} options
- * @returns {Promise<any>} results
+ * @typedef {{
+ *  name: string,
+ *  suite?: string,
+ *  passed?: boolean,
+ *  skipped?: boolean,
+ *  error?: string | any,
+ *  duration: number,
+ *  completedAt: number
+ * }} TestState
  */
-export async function daebugRunTests(options = {}) {
+
+/**
+ * Run registered tests
+ * @param {{
+ *  files?: string[],
+ *  timeout?: number,
+ *  streamProgress: (progress: {
+ *    complete: boolean,
+ *    recentTests?: TestState[],
+ *    allTests?: TestState[],
+ *    totals: { pass: number, fail: number, skip: number, total: number },
+ *    duration: number
+ *  }) => void | Promise<any>
+ * }} options
+ */
+export async function daebugRunTests(options) {
   const files = options.files || [];
-  const timeout = options.timeout || 60000;
+  const streamProgress = options.streamProgress;
   const realmId = getRealmId();
   const reg = getTestRegistry(realmId);
   
@@ -118,7 +139,7 @@ export async function daebugRunTests(options = {}) {
     skipped: 0,
     total: 0,
     duration: 0,
-    tests: /** @type {any[]} */([])
+    tests:/** @type {TestState[]}*/([])
   };
   
   const startTime = Date.now();
@@ -143,8 +164,7 @@ export async function daebugRunTests(options = {}) {
           passed: false,
           error: (err && typeof err === 'object' && 'stack' in err) ? (err.stack || String(err)) : String(err),
           duration: 0,
-          completedAt: now,
-          fullTs: fullTsFmt(now)
+          completedAt: now
         });
         results.failed++;
         results.total++;
@@ -169,8 +189,7 @@ export async function daebugRunTests(options = {}) {
           suite: testCase.suite,
           skipped: true,
           duration: 0,
-          completedAt: now,
-          fullTs: fullTsFmt(now)
+          completedAt: now
         });
         continue;
       }
@@ -183,8 +202,7 @@ export async function daebugRunTests(options = {}) {
           suite: testCase.suite,
           skipped: true,
           duration: 0,
-          completedAt: now,
-          fullTs: fullTsFmt(now)
+          completedAt: now
         });
         continue;
       }
@@ -222,6 +240,13 @@ export async function daebugRunTests(options = {}) {
       testResult.completedAt = completed;
       testResult.fullTs = fullTsFmt(completed);
       results.tests.push(testResult);
+      
+      await streamProgress({
+        complete: false,
+        recentTests: [testResult],
+        totals: { pass: results.passed, fail: results.failed, skip: results.skipped, total: results.total },
+        duration: Date.now() - startTime
+      });
     }
     
   } catch (err) {
@@ -231,8 +256,7 @@ export async function daebugRunTests(options = {}) {
       passed: false,
       error: (err && typeof err === 'object' && 'stack' in err) ? (err.stack || String(err)) : String(err),
       duration: 0,
-      completedAt: now,
-      fullTs: fullTsFmt(now)
+      completedAt: now
     });
     results.failed++;
     results.total++;
@@ -294,14 +318,14 @@ export async function run(options = {}) {
       const data = await response.json();
       testFiles = data.files || [];
       
-      console.log(`[test-runner] discovered ${testFiles.length} test files`);
+      console.log(`   𒀸  discovered ${testFiles.length} test files`);
     }
     
     // Add explicit files
     testFiles = [...testFiles, ...explicitFiles];
     
     if (testFiles.length === 0) {
-      console.warn('[test-runner] no test files found');
+      console.warn('   𒀸  no test files found');
       return { passed: 0, failed: 0, skipped: 0, total: 0, duration: 0, tests: [] };
     }
     
@@ -309,7 +333,10 @@ export async function run(options = {}) {
     let lastProgressTime = Date.now();
     const progressDebounceMs = 2000;
     
-    const streamProgress = async (/** @type {any} */ progressData) => {
+    /**
+     * @type {Parameters<typeof daebugRunTests>[0]['streamProgress']} 
+     */
+    const streamProgress = async (progressData) => {
       const now = Date.now();
       if (now - lastProgressTime < progressDebounceMs && !progressData.complete) {
         return; // Debounce
@@ -326,13 +353,12 @@ export async function run(options = {}) {
           })
         });
       } catch (err) {
-        console.error('[test-runner] failed to stream progress:', err);
+        console.error('   𒀸  failed to stream progress:', err);
       }
     };
     
-    // Run tests with daebugRunTests
-    const startTime = Date.now();
-    const results = await daebugRunTests({ files: testFiles, ...options });
+    // Run tests with daebugRunTests and pass streaming handler
+    const results = await daebugRunTests({ files: testFiles, streamProgress, ...options });
     
     // Stream final results - include ALL tests, not just recent
     await streamProgress({
@@ -357,7 +383,7 @@ export async function run(options = {}) {
     
     return results;
   } catch (err) {
-    console.error('[test-runner] run() failed:', err);
+    console.error('   𒀸  run() failed:', err);
     throw err;
   }
 }

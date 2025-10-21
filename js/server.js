@@ -327,7 +327,7 @@ function handleTestDiscovery(root, req, res) {
       const cwd = payload.cwd || root;
       const exclude = payload.exclude || ['node_modules/**', '.git/**', 'dist/**', 'build/**'];
       
-      console.log('[test-discovery] patterns:', patterns, 'cwd:', cwd);
+      console.log('   𒀸  patterns:', patterns, 'cwd:', cwd);
       
       const discovered = discoverTestFiles(root, cwd, patterns, exclude);
       const urls = discovered.map(filePath => {
@@ -335,11 +335,11 @@ function handleTestDiscovery(root, req, res) {
         return '/' + rel.split(sep).join('/');
       });
       
-      console.log('[test-discovery] found', urls.length, 'test files');
+      console.log('   𒀸  found', urls.length, 'test files');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ files: urls }));
     } catch (err) {
-      console.error('[test-discovery] error:', err);
+      console.error('   𒀸  error:', err);
       res.writeHead(500).end(JSON.stringify({ error: String(err) }));
     }
   });
@@ -361,7 +361,7 @@ function handleTestProgress(req, res) {
       const page = registry.get(realmName);
       
       if (!page) {
-        console.warn('[test-progress] unknown realm:', realmName);
+        console.warn('   𒀸  unknown realm:', realmName);
         return res.writeHead(404).end('realm not found');
       }
       
@@ -371,10 +371,10 @@ function handleTestProgress(req, res) {
       // Write to realm's daebug log
       writer.writeTestProgress(page.file, markdown);
       
-      console.log('[test-progress]', realmName, ':', payload.totals?.total || 0, 'tests');
+      console.log('   𒀸 ', realmName, ':', payload.totals?.total || 0, 'tests');
       res.writeHead(200).end('ok');
     } catch (err) {
-      console.error('[test-progress] error:', err);
+      console.error('   𒀸  error:', err);
       res.writeHead(500).end('error');
     }
   });
@@ -394,7 +394,7 @@ function discoverTestFiles(root, cwd, patterns, exclude) {
   
   // Security: ensure cwd is within root
   if (!cwdAbs.startsWith(rootAbs)) {
-    console.warn('[test-discovery] cwd outside root:', cwdAbs, 'vs', rootAbs);
+    console.warn('   𒀸  cwd outside root:', cwdAbs, 'vs', rootAbs);
     return [];
   }
   

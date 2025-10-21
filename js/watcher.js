@@ -26,51 +26,68 @@ export const markFileSeen = file => seenFiles.add(file);
 export function watchPage(root, page) {
   if (activeWatchers.has(page.name)) return;
   activeWatchers.add(page.name);
+  
   let lastContent = '';
+  /** @type {ReturnType<typeof watch> | null} */
+  let watcher = null;
   
   const check = () => {
     try {
-      if (!existsSync(page.file)) return;
+      if (!existsSync(page.file)) {
+        lastContent = '';
+        return;
+      }
+      
       markFileSeen(page.file);
       const text = readFileSync(page.file, 'utf8');
       if (text === lastContent) return;
+      
       lastContent = text;
       const req = parseRequest(text, page.name);
       if (!req) return;
+      
       const snippetRaw = (req.code || '').replace(/\s+/g, ' ').trim();
       const snippet = snippetRaw.length > 20 ? snippetRaw.slice(0, 20) + '...' : snippetRaw;
       console.info(`> ${req.agent} to ${page.name} "${snippet}"`);
       job.create(page, req.agent, req.code, req.hasFooter);
       registry.updateMaster(root);
     } catch (err) {
-      console.warn(`[${page.name}] parse error:`, err);
+      if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
+        console.warn(`[${page.name}] error:`, err);
+      }
     }
   };
   
-  const debounceCheck = () => {
+  const debounce = () => {
     const t = timers.get(page.name);
     if (t) clearTimeout(t);
     timers.set(page.name, setTimeout(check, DEBOUNCE_MS));
   };
   
-  if (existsSync(page.file)) {
-    const watcher = watch(page.file, debounceCheck);
-    watcher.on('error', (err) => {
-      console.warn(`[${page.name}] watcher error:`, err);
-      activeWatchers.delete(page.name);
-    });
-  } else {
-    const daebugDir = page.file.replace(/\\[^\\]+$/, '');
+  const setupWatch = () => {
+    if (watcher) watcher.close();
+    
     try {
-      const watcher = watch(daebugDir || '.', (eventType, filename) => {
-        if (filename === page.file.split(/\\|\//).pop()) debounceCheck();
-      });
-      watcher.on('error', (err) => {
-        console.warn(`[${page.name}] directory watcher error:`, err);
-        activeWatchers.delete(page.name);
-      });
-    } catch {}
-  }
+      if (existsSync(page.file)) {
+        watcher = watch(page.file, (evt) => {
+          if (evt === 'rename' && !existsSync(page.file)) setupWatch();
+          debounce();
+        });
+      } else {
+        const dir = page.file.replace(/[\\\/][^\\\/]+$/, '') || '.';
+        const name = page.file.split(/[\\\/]/).pop();
+        watcher = watch(dir, (evt, file) => {
+          if (file === name) { setupWatch(); debounce(); }
+        });
+      }
+    } catch (err) {
+      if (err && typeof err === 'object' && 'code' in err && err.code !== 'ENOENT') {
+        console.warn(`[${page.name}] watch failed:`, err);
+      }
+    }
+  };
+  
+  setupWatch();
   check();
 }
 

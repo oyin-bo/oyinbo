@@ -205,24 +205,24 @@ describe('watchPage activeWatchers tracking', () => {
 });
 
 describe('watchPage file watching logic', () => {
-  test('uses fs.watch for existing files', () => {
+  test('uses fs.watch for files', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('watch(page.file, debounceCheck)'));
+    assert.ok(watcherContent.includes('watch(page.file,'));
   });
 
-  test('watches parent directory for non-existent files', () => {
+  test('watches directory for non-existent files', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('watch(daebugDir ||'));
+    assert.ok(watcherContent.includes('watch(dir,'));
   });
 
   test('extracts directory from file path', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('page.file.replace(/\\\\[^\\\\]+$/, \'\')'));
+    assert.ok(watcherContent.includes('page.file.replace(/['));
   });
 
   test('filters watch events by filename', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('filename === page.file.split'));
+    assert.ok(watcherContent.includes('file === name'));
   });
 
   test('calls check immediately after setup', () => {
@@ -249,9 +249,9 @@ describe('watchPage content change detection', () => {
     assert.ok(watcherContent.includes('lastContent = text'));
   });
 
-  test('returns early if file does not exist', () => {
+  test('clears lastContent when file does not exist', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('if (!existsSync(page.file)) return'));
+    assert.ok(watcherContent.includes('lastContent = \'\''));
   });
 
   test('marks file as seen when read', () => {
@@ -293,15 +293,15 @@ describe('watchPage error handling', () => {
     assert.ok(watcherContent.includes('catch (err)'));
   });
 
-  test('logs parse errors with page name', () => {
+  test('logs errors with page name', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    assert.ok(watcherContent.includes('console.warn(`[${page.name}] parse error:'));
+    assert.ok(watcherContent.includes('console.warn(`[${page.name}]'));
   });
 
   test('catches watch setup errors', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
     assert.ok(watcherContent.includes('try {'));
-    assert.ok(watcherContent.includes('} catch {}'));
+    assert.ok(watcherContent.includes('} catch (err)'));
   });
 });
 
@@ -372,10 +372,10 @@ describe('watcher error handling comprehensive', () => {
     assert.ok(watcherContent.includes('if (!existsSync(daebugFile)) return'));
   });
 
-  test('watchPage returns early on missing file', () => {
+  test('watchPage handles file existence checks', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
-    const returns = (watcherContent.match(/if \(!existsSync\([^)]+\)\) return/g) || []).length;
-    assert.ok(returns >= 2); // watchPage and watchForRestart
+    const existsChecks = (watcherContent.match(/existsSync\(/g) || []).length;
+    assert.ok(existsChecks >= 3); // Multiple existence checks
   });
 });
 

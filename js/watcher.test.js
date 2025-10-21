@@ -87,16 +87,16 @@ describe('watcher debounce constant', () => {
 });
 
 describe('watcher file path handling', () => {
-  test('watcher code handles Windows-style paths', () => {
+  test('watcher code handles cross-platform paths', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
     // Check that watcher uses path manipulation that works cross-platform
-    assert.ok(watcherContent.includes('replace(/\\\\[^\\\\]+$/, \'\')'));
+    assert.ok(watcherContent.includes('page.file.replace(/['));
   });
 
   test('watcher code handles file path splitting', () => {
     const watcherContent = readFileSync('./js/watcher.js', 'utf8');
     // Check that watcher splits file paths correctly
-    assert.ok(watcherContent.includes('split(/\\\\|\\//)'));
+    assert.ok(watcherContent.includes('.split(/['));
   });
 });
 

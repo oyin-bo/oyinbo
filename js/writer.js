@@ -266,7 +266,13 @@ export function writeReply(job, result) {
   
   let output;
   if (execBlock) {
-    output = [...lines.slice(0, execBlock.headerIdx), '', reply, ...blocks, '', FOOTER].join('\n');
+    output = [
+      ...lines.slice(0, footerIdx),
+      '',
+      reply,
+      ...blocks,
+      '',
+      FOOTER].join('\n');
   } else if (job.requestHasFooter === false) {
     const lastFence = findLastFencedBlock(lines);
     if (lastFence) {

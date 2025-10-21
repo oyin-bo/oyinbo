@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { parseRequest } from './parser.js';
 import * as job from './job.js';
 import * as registry from './registry.js';
-import { daebugIndex } from './templates/daebug-index.js';
+import { daebugMD_template } from './daebug.md.template.js';
 
 const DEBOUNCE_MS = 150;
 
@@ -115,13 +115,12 @@ export function watchForRestart(root) {
         console.log('👾' + shutdownRequestedAt.toLocaleTimeString() + ' %%SHUTDOWN%% detected in daebug.md - shutting down server...');
         
         // Get start time from registry module
-        const startTimeMatch = text.match(/started at (.+)/i);
-        const startTime = startTimeMatch ? startTimeMatch[1] : 'unknown';
+        const startTime = registry.getStartTime();
         
         // Update daebug.md with shutdown template
-        const downMessage = daebugIndex({
+        const downMessage = daebugMD_template({
           startTime: startTime,
-          endTime: shutdownRequestedAt.toString(),
+          endTime: shutdownRequestedAt,
           isShutdown: true
         });
         writeFileSync(daebugFile, downMessage, 'utf8');

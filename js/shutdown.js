@@ -1,7 +1,8 @@
 // @ts-check
-import { writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { daebugIndex } from './templates/daebug-index.js';
+import { daebugMD_template } from './daebug.md.template.js';
+import * as registry from './registry.js';
 
 let shutdownHandlersInstalled = false;
 let rootPath = '';
@@ -56,13 +57,10 @@ function writeShutdownMessage(reason) {
   if (!existsSync(daebugFile)) return;
   
   try {
-    const text = readFileSync(daebugFile, 'utf8');
-    const startTimeMatch = text.match(/started (?:at )?(.+)/i);
-    const startTime = startTimeMatch ? startTimeMatch[1] : 'unknown';
+    const startTime = registry.getStartTime();
+    const endTime = new Date();
     
-    const endTime = new Date().toString();
-    
-    const content = daebugIndex({
+    const content = daebugMD_template({
       startTime,
       endTime,
       isShutdown: true

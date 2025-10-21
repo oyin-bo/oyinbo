@@ -156,6 +156,8 @@ export async function daebugRunTests(options = {}) {
     
     // Execute tests
     for (const testCase of reg.tests) {
+      // Yield to message loop before each test to allow progress reporting
+      await new Promise(resolve => setTimeout(resolve, 1));
       results.total++;
       
       // Skip tests if there are 'only' tests and this isn't one

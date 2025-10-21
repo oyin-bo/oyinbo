@@ -1,7 +1,7 @@
 // @ts-check
 import { join, relative } from 'node:path';
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
-import { daebugIndex } from './templates/daebug-index.js';
+import { daebugMD_template } from './daebug.md.template.js';
 
 const DAEBUG_DIR = 'daebug';
 const MASTER_FILE = 'daebug.md';
@@ -10,14 +10,6 @@ const startTime = new Date();
 
 /** @param {string} name */
 const sanitizeName = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
-/** @param {number} ms */
-const clockFmt = ms => {
-  const d = new Date(ms);
-  return [d.getHours(), d.getMinutes(), d.getSeconds()]
-    .map(x => String(x).padStart(2, '0'))
-    .join(':');
-};
 
 /**
  * @typedef {{
@@ -36,9 +28,9 @@ const pages = new Map();
 export function init(root) {
   const master = join(root, MASTER_FILE);
   if (!existsSync(master)) {
-    const content = daebugIndex({
-      startTime: startTime.toString(),
-      pageList: ''
+    const content = daebugMD_template({
+      startTime: startTime,
+      pageList: []
     });
     writeFileSync(master, content, 'utf8');
   }
@@ -82,15 +74,9 @@ export function getOrCreate(root, name, url) {
 
 /** @param {string} root */
 export function updateMaster(root) {
-  const pageLines = [];
-  for (const p of Array.from(pages.values()).sort((a, b) => b.lastSeen - a.lastSeen)) {
-    const path = relative(root, p.file).replace(/\\/g, '/');
-    pageLines.push(`* [${p.name}](${path}) (${p.url}) last ${clockFmt(p.lastSeen)} state: ${p.state}`);
-  }
-  
-  const content = daebugIndex({
-    startTime: startTime.toString(),
-    pageList: pageLines.join('\n')
+  const content = daebugMD_template({
+    startTime: startTime,
+    pageList: Array.from(pages.values())
   });
   
   writeFileSync(join(root, MASTER_FILE), content, 'utf8');
@@ -99,3 +85,4 @@ export function updateMaster(root) {
 /** @param {string} name */
 export const get = name => pages.get(name);
 export const all = () => Array.from(pages.values());
+export const getStartTime = () => startTime;

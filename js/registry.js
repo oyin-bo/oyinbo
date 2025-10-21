@@ -76,7 +76,8 @@ export function getOrCreate(root, name, url) {
 export function updateMaster(root) {
   const content = daebugMD_template({
     startTime: startTime,
-    pageList: Array.from(pages.values())
+    pageList: Array.from(pages.values()),
+    root
   });
   
   writeFileSync(join(root, MASTER_FILE), content, 'utf8');

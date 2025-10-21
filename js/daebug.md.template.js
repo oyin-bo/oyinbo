@@ -1,4 +1,5 @@
 // @ts-check
+import { relative } from 'node:path';
 
 /**
  * Format milliseconds as HH:MM:SS time string
@@ -13,45 +14,32 @@ function clockFmt(ms) {
 }
 
 /**
- * Format relative time from a timestamp (e.g. "2 minutes ago")
- * @param {number} ms
- * @returns {string}
- */
-function relativeTime(ms) {
-  const diff = Date.now() - ms;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  
-  if (seconds < 60) return 'just now';
-  if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-  return new Date(ms).toLocaleDateString();
-}
-
-/**
  * Template for daebug.md index
  * @param {{
  *   startTime: number|Date,
  *   pageList?: Array<{name: string, url: string, file: string, state: string, lastSeen: number}>,
  *   isShutdown?: boolean,
- *   endTime?: number|Date
+ *   endTime?: number|Date,
+ *   root?: string
  * }} params
  * @returns {string}
  */
-export function daebugMD_template({ startTime, pageList = [], isShutdown = false, endTime }) {
+export function daebugMD_template({ startTime, pageList = [], isShutdown = false, endTime, root }) {
   // Normalize timestamps to milliseconds
   const startMs = startTime instanceof Date ? startTime.getTime() : startTime;
   const endMs = endTime instanceof Date ? endTime.getTime() : endTime;
   
   // Format time strings
-  const startTimeStr = clockFmt(startMs);
-  const endTimeStr = endMs !== undefined ? clockFmt(endMs) : '';
+  const startTimeStr = new Date(startMs).toLocaleTimeString();
+  const endTimeStr = endMs !== undefined ? new Date(endMs).toLocaleTimeString() : '';
   
   // Format page list as markdown
   const pageListStr = pageList
     .sort((a, b) => b.lastSeen - a.lastSeen)
-    .map(p => `* [${p.name}](${p.file.replace(/\\/g, '/')}) (${p.url}) last ${relativeTime(p.lastSeen)} state: ${p.state}`)
+    .map(p => {
+      const filePath = root ? relative(root, p.file).replace(/\\/g, '/') : p.file.replace(/\\/g, '/');
+      return `* [${p.name}](${filePath}) (${p.url}) at ${new Date(p.lastSeen).toLocaleTimeString()}: ${p.state === 'idle' ? 'live' : p.state}`;
+    })
     .join('\n');
 
   return `# 👾 Daebug remote debugging REPL${isShutdown ? `: SERVER SHUT DOWN ${endTimeStr}` : ` started ${startTimeStr}`}

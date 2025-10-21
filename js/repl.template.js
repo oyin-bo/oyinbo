@@ -59,7 +59,11 @@ export function findLastFencedBlock(lines) {
 export function findAgentHeaderAbove(lines, startIdx) {
   let idx = startIdx - 1;
   while (idx >= 0 && !lines[idx].trim()) idx--;
-  return idx >= 0 && /^>\s*\*\*/.test(lines[idx].trim()) ? idx : -1;
+  // Check for old format: > **agent** to
+  if (idx >= 0 && /^>\s*\*\*/.test(lines[idx].trim())) return idx;
+  // Check for new format: ### 🗣️agent to
+  if (idx >= 0 && /^###\s*🗣️/.test(lines[idx].trim())) return idx;
+  return -1;
 }
 
 /**
@@ -73,11 +77,66 @@ export function findExecutingBlock(lines, page, agent) {
   const footerIdx = findFooter(lines);
   if (footerIdx < 0) return null;
   for (let i = footerIdx - 1; i >= 0; i--) {
+    // Check for old format: > **page** to agent at
     if (lines[i].startsWith(`> **${page}** to ${agent} at `) && /^executing \(/.test((lines[i + 1] || '').trim())) {
+      return { headerIdx: i, placeholderIdx: i + 1 };
+    }
+    // Check for new format: #### 👍page or #### 🚫page to agent at
+    if (/^#{4}\s*[👍🚫]/.test(lines[i]) && lines[i].includes(`${page} to ${agent} at `) && /^executing \(/.test((lines[i + 1] || '').trim())) {
       return { headerIdx: i, placeholderIdx: i + 1 };
     }
   }
   return null;
+}
+
+/**
+ * Format file header (level-1 heading)
+ * @param {string} title Session title
+ * @returns {string}
+ */
+export function formatFileHeader(title) {
+  return `# ${title}`;
+}
+
+/**
+ * Format session guide section
+ * @returns {string}
+ */
+export function formatSessionGuide() {
+  return `This file contains a live debugging session. It allows you to execute JavaScript code in a remote browser or runtime environment and see the results in real-time.
+
+## Short Guide
+
+- **Plain-text notes:** Add context before each request explaining what you're trying to do and why.
+- **Chain of thought:** Describe your hypothesis, what you're checking, and observations at any point of your work.
+- **Section headers:** Use level-2 headers (\`##\`) to mark substantial debugging turns. Add a short note on your plan below the header.
+- **Cleanup:** As sessions grow long, replace old irrelevant chunks between level-2 section headers with 1-paragraph summaries.
+- **Simple requests:** Start with basic expressions like \`1+1\`, \`Object.keys(window)\` to verify connectivity
+- **Test runs:** Use \`(await import('node:test')).run();\` to execute tests and review output`;
+}
+
+/**
+ * Ensure file has header and guide section (idempotent operation)
+ * @param {string[]} lines File lines array
+ * @param {string} defaultTitle Default title if header not found
+ * @returns {string[]} Modified lines array with header/guide if needed
+ */
+export function ensureFileHeader(lines, defaultTitle) {
+  // Scan first 20 lines for level-1 header
+  const scanLimit = Math.min(20, lines.length);
+  for (let i = 0; i < scanLimit; i++) {
+    if (/^# /.test(lines[i])) {
+      // Header found, return unchanged
+      return lines;
+    }
+  }
+  
+  // No header found, prepend header and guide
+  const headerLine = formatFileHeader(defaultTitle);
+  const guideLines = formatSessionGuide().split('\n');
+  const separator = '---';
+  
+  return [headerLine, '', ...guideLines, '', separator, '', ...lines];
 }
 
 /**
@@ -88,7 +147,7 @@ export function findExecutingBlock(lines, page, agent) {
  * @returns {string}
  */
 export function formatAgentHeader(agent, target, ts) {
-  return `> **${agent}** to ${target} at ${clockFmt(ts)}`;
+  return `### 🗣️${agent} to ${target} at ${clockFmt(ts)}`;
 }
 
 /**
@@ -101,8 +160,8 @@ export function formatAgentHeader(agent, target, ts) {
  * @returns {string}
  */
 export function formatReplyHeader(page, agent, ts, dur, err) {
-  const errorMarker = err ? ' (**ERROR**)' : '';
-  return `> **${page}** to ${agent} at ${clockFmt(ts)}${errorMarker} (${durationFmt(dur)})`;
+  const emoji = err ? '🚫' : '👍';
+  return `#### ${emoji}${page} to ${agent} at ${clockFmt(ts)} (${durationFmt(dur)})`;
 }
 
 /**
@@ -115,16 +174,18 @@ export function formatCodeBlock(code) {
 }
 
 /**
- * Format a single background event as a fenced block
+ * Format a single background event as a fenced block with level-5 header
  * @param {{type: string, level?: string, source?: string, ts?: string, fullTs?: string, message: string, stack?: string, caller?: string}} event
  * @returns {string}
  */
 export function formatBackgroundEvent(event) {
   if (event.type === 'error') {
+    const emoji = '🚫';
+    const eventLabel = event.source || 'window.onerror';
     const fenceType = event.source || 'Error';
     let content = event.stack || event.message;
     
-    // Append timestamp to first line of error content
+    // Append timestamp to content
     if (event.fullTs && content) {
       const lines = content.split('\n');
       if (lines.length > 0 && lines[0].trim()) {
@@ -133,10 +194,22 @@ export function formatBackgroundEvent(event) {
       }
     }
     
-    return `\`\`\`${fenceType}\n${content}\n\`\`\``;
+    return `##### ${emoji}${eventLabel}\n\`\`\`${fenceType}\n${content}\n\`\`\``;
   } else if (event.type === 'console') {
     const level = event.level || 'log';
+    let emoji = '☑️'; // Default for console.log
     let fenceType = 'Text';
+    
+    // Select emoji based on console level
+    if (level === 'error' || level === 'warn') {
+      emoji = '🆘';
+    } else if (level === 'info') {
+      emoji = 'ℹ️';
+    } else if (level === 'debug') {
+      emoji = '🔢';
+    }
+    
+    // Check if message is JSON
     try {
       JSON.parse(event.message);
       fenceType = 'JSON';
@@ -144,6 +217,8 @@ export function formatBackgroundEvent(event) {
       // Not JSON
     }
     if (level === 'error') fenceType = 'Error';
+    
+    const eventLabel = `console.${level}`;
     const metadata = `console.${level}`;
     
     let content = event.message;
@@ -151,10 +226,10 @@ export function formatBackgroundEvent(event) {
       content = `${event.caller}\n${event.message}`;
     }
     
-    return `\`\`\`${fenceType} ${metadata}\n${content}\n\`\`\``;
+    return `##### ${emoji}${eventLabel}\n\`\`\`${fenceType} ${metadata}\n${content}\n\`\`\``;
   }
   
-  return `\`\`\`Text\n${event.message}\n\`\`\``;
+  return `##### 🔢event\n\`\`\`Text\n${event.message}\n\`\`\``;
 }
 
 /**
@@ -243,8 +318,16 @@ export function parseRequest(text, pageName) {
     const chunk = lines.slice(footerIdx + 1).join('\n');
     if (!chunk.trim()) return null;
     
-    const agentRe = /^>\s*\*\*(\S+)\*\*\s+to\s+(\S+)\s+at\s+(\d{2}:\d{2}:\d{2})\s*$/;
-    const headerMatch = agentRe.exec(lines[footerIdx + 1]);
+    // Try new format first (level-3 heading with emoji)
+    const newAgentRe = /^###\s*🗣️(\S+)\s+to\s+(\S+)\s+at\s+(\d{2}:\d{2}:\d{2})\s*$/;
+    // Fall back to old format (blockquote)
+    const oldAgentRe = /^>\s*\*\*(\S+)\*\*\s+to\s+(\S+)\s+at\s+(\d{2}:\d{2}:\d{2})\s*$/;
+    
+    let headerMatch = newAgentRe.exec(lines[footerIdx + 1]);
+    if (!headerMatch) {
+      headerMatch = oldAgentRe.exec(lines[footerIdx + 1]);
+    }
+    
     const codeChunk = lines.slice(footerIdx + 1 + (headerMatch ? 1 : 0)).join('\n');
     const codeMatch = /```(?:\s*(?:js|javascript))?\s*\n([\s\S]*?)```/i.exec(codeChunk);
     
@@ -252,8 +335,8 @@ export function parseRequest(text, pageName) {
     
     const code = codeMatch[1].endsWith('\n') ? codeMatch[1].slice(0, -1) : codeMatch[1];
 
-    // Reject if code starts with a response header
-    if (/^>\s*\*\*\S+\*\*\s+to\s+\S+/.test(code.trim())) return null;
+    // Reject if code starts with a response header (old or new format)
+    if (/^(>|\#{3,4})\s*(\*\*\S+\*\*|[👍🚫]\S+)\s+to\s+\S+/.test(code.trim())) return null;
 
     return {
       agent: headerMatch?.[1] || 'agent',
@@ -278,21 +361,26 @@ export function parseRequest(text, pageName) {
   }
   if (!lastMatch) return null;
 
-  // Check for page reply header above
+  // Check for page reply header above (both old and new formats)
   const before = text.slice(0, lastMatch.index).split('\n');
   let idx = before.length - 1;
   while (idx >= 0 && !before[idx].trim()) idx--;
   if (idx >= 0) {
     const escName = pageName.replace(/[-\\^$*+?.()|[\]{}]/g, '\\$&');
+    // Check for old format: > **page** to agent
     if (new RegExp('^>\\s*\\*\\*' + escName + '\\*\\*\\s+to\\s+\\S+\\s+at\\s+\\d{2}:\\d{2}:\\d{2}').test(before[idx].trim())) {
+      return null;
+    }
+    // Check for new format: #### 👍page or #### 🚫page
+    if (new RegExp('^#{4}\\s*[👍🚫]' + escName + '\\s+to\\s+\\S+\\s+at\\s+\\d{2}:\\d{2}:\\d{2}').test(before[idx].trim())) {
       return null;
     }
   }
 
   const code = lastMatch.code.endsWith('\n') ? lastMatch.code.slice(0, -1) : lastMatch.code;
 
-  // Reject if code starts with a response header
-  if (/^>\s*\*\*\S+\*\*\s+to\s+\S+/.test(code.trim())) return null;
+  // Reject if code starts with a response header (old or new format)
+  if (/^(>|\#{3,4})\s*(\*\*\S+\*\*|[👍🚫]\S+)\s+to\s+\S+/.test(code.trim())) return null;
 
   return { agent: 'agent', target: pageName, time: '', code: code, hasFooter: false };
 }

@@ -242,7 +242,7 @@ test('formatBackgroundEvent formats error with window.onerror source', () => {
     stack: 'Error: Uncaught Error\n    at line 10'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```window.onerror\nError: Uncaught Error\n    at line 10\n```');
+  assert.strictEqual(result, '##### 🚫window.onerror\n```window.onerror\nError: Uncaught Error\n    at line 10\n```');
 });
 
 test('formatBackgroundEvent formats error with unhandledrejection source', () => {
@@ -254,7 +254,7 @@ test('formatBackgroundEvent formats error with unhandledrejection source', () =>
     stack: 'Error: Promise rejected\n    at async line 20'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```unhandledrejection\nError: Promise rejected\n    at async line 20\n```');
+  assert.strictEqual(result, '##### 🚫unhandledrejection\n```unhandledrejection\nError: Promise rejected\n    at async line 20\n```');
 });
 
 test('formatBackgroundEvent formats error without stack', () => {
@@ -266,7 +266,7 @@ test('formatBackgroundEvent formats error without stack', () => {
     stack: ''
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```window.onerror\nSimple error\n```');
+  assert.strictEqual(result, '##### 🚫window.onerror\n```window.onerror\nSimple error\n```');
 });
 
 test('formatBackgroundEvent formats error without source', () => {
@@ -277,7 +277,7 @@ test('formatBackgroundEvent formats error without source', () => {
     stack: 'Error: Generic error'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```Error\nError: Generic error\n```');
+  assert.strictEqual(result, '##### 🚫window.onerror\n```Error\nError: Generic error\n```');
 });
 
 test('formatBackgroundEvent formats console.log with JSON content', () => {
@@ -288,7 +288,7 @@ test('formatBackgroundEvent formats console.log with JSON content', () => {
     message: '{"x":1,"y":2}'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```JSON console.log\n{"x":1,"y":2}\n```');
+  assert.strictEqual(result, '##### ☑️console.log\n```JSON console.log\n{"x":1,"y":2}\n```');
 });
 
 test('formatBackgroundEvent formats console.log with text content', () => {
@@ -299,7 +299,7 @@ test('formatBackgroundEvent formats console.log with text content', () => {
     message: 'Hello world'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```Text console.log\nHello world\n```');
+  assert.strictEqual(result, '##### ☑️console.log\n```Text console.log\nHello world\n```');
 });
 
 test('formatBackgroundEvent formats console.info', () => {
@@ -310,7 +310,7 @@ test('formatBackgroundEvent formats console.info', () => {
     message: 'Information message'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```Text console.info\nInformation message\n```');
+  assert.strictEqual(result, '##### ℹ️console.info\n```Text console.info\nInformation message\n```');
 });
 
 test('formatBackgroundEvent formats console.warn', () => {
@@ -321,7 +321,7 @@ test('formatBackgroundEvent formats console.warn', () => {
     message: 'Warning message'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```Text console.warn\nWarning message\n```');
+  assert.strictEqual(result, '##### 🆘console.warn\n```Text console.warn\nWarning message\n```');
 });
 
 test('formatBackgroundEvent formats console.error', () => {
@@ -332,7 +332,7 @@ test('formatBackgroundEvent formats console.error', () => {
     message: 'Error message'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```Error console.error\nError message\n```');
+  assert.strictEqual(result, '##### 🆘console.error\n```Error console.error\nError message\n```');
 });
 
 test('formatBackgroundEvent formats console without level', () => {
@@ -342,7 +342,7 @@ test('formatBackgroundEvent formats console without level', () => {
     message: 'Default message'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```Text console.log\nDefault message\n```');
+  assert.strictEqual(result, '##### ☑️console.log\n```Text console.log\nDefault message\n```');
 });
 
 test('formatBackgroundEvent handles unknown event type', () => {
@@ -352,7 +352,7 @@ test('formatBackgroundEvent handles unknown event type', () => {
     message: 'Strange event'
   };
   const result = formatBackgroundEvent(event);
-  assert.strictEqual(result, '```Text\nStrange event\n```');
+  assert.strictEqual(result, '##### 🔢event\n```Text\nStrange event\n```');
 });
 
 // buildBlocks with backgroundEvents tests
@@ -438,7 +438,7 @@ describe('writeDiagnostic', () => {
     
     assert.ok(existsSync(testFile));
     const content = readFileSync(testFile, 'utf8');
-    assert.match(content, /# Worker Diagnostics/);
+    assert.match(content, /# System Diagnostic/);
     assert.match(content, /Test diagnostic message/);
     assert.match(content, /Write code in a fenced JS block/);
     

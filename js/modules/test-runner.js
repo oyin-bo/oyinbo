@@ -340,31 +340,63 @@ export async function run(options = {}) {
       return { passed: 0, failed: 0, skipped: 0, total: 0, duration: 0, tests: [] };
     }
     
-    // Create streaming handler
+    // Create streaming handler with buffering
     let lastProgressTime = Date.now();
     const progressDebounceMs = 2000;
+    /** @type {TestState[]} */
+    let bufferedTests = [];
     
     /**
      * @type {Parameters<typeof daebugRunTests>[0]['streamProgress']} 
      */
     const streamProgress = async (progressData) => {
       const now = Date.now();
-      if (now - lastProgressTime < progressDebounceMs && !progressData.complete) {
-        return; // Debounce
-      }
-      lastProgressTime = now;
+      const timeSinceLastProgress = now - lastProgressTime;
       
-      try {
-        await fetch('/daebug/test-progress', { // TODO: covert to root-relative, avoid nested directories
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            realmName: realmId,
-            ...progressData
-          })
-        });
-      } catch (err) {
-        console.error('   𒀸  failed to stream progress:', err);
+      // Always send complete results immediately
+      if (progressData.complete) {
+        lastProgressTime = now;
+        try {
+          await fetch('/daebug/test-progress', { // TODO: covert to root-relative, avoid nested directories
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              realmName: realmId,
+              ...progressData
+            })
+          });
+        } catch (err) {
+          console.error('   𒀸  failed to stream progress:', err);
+        }
+        return;
+      }
+      
+      // Buffer recent tests
+      if (progressData.recentTests) {
+        bufferedTests.push(...progressData.recentTests);
+      }
+      
+      // Send if debounce period elapsed
+      if (timeSinceLastProgress >= progressDebounceMs) {
+        lastProgressTime = now;
+        if (bufferedTests.length > 0) {
+          try {
+            await fetch('/daebug/test-progress', { // TODO: covert to root-relative, avoid nested directories
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                realmName: realmId,
+                recentTests: bufferedTests,
+                totals: progressData.totals,
+                duration: progressData.duration,
+                complete: false
+              })
+            });
+            bufferedTests = [];
+          } catch (err) {
+            console.error('   𒀸  failed to stream progress:', err);
+          }
+        }
       }
     };
     

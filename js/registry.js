@@ -17,7 +17,8 @@ const sanitizeName = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').repl
  *   url: string,
  *   file: string,
  *   state: 'idle' | 'executing',
- *   lastSeen: number
+ *   lastSeen: number,
+ *   lastTestProgress?: {pass: number, fail: number, skip: number}
  * }} Page
  */
 

@@ -160,7 +160,7 @@ export async function daebugRunTests(options) {
       } catch (err) {
         const now = Date.now();
         results.tests.push({
-          name: `Import: ${file}`,
+          name: `Import: ${file.replace(/^\//, '')}`,
           passed: false,
           error: (err && typeof err === 'object' && 'stack' in err) ? (err.stack || String(err)) : String(err),
           duration: 0,
@@ -401,9 +401,9 @@ export class AssertionError extends Error {
 }
 
 /**
- * Assert module - Node.js compatible
+ * Assert methods object - shared between default export and strict namespace
  */
-export const assert = {
+const assertMethods = {
   ok: (/** @type {any} */ value, /** @type {any} */ message) => {
     if (!value) throw new AssertionError(message || 'Expected truthy value', value, true);
   },
@@ -427,6 +427,24 @@ export const assert = {
   deepStrictEqual: (/** @type {any} */ actual, /** @type {any} */ expected, /** @type {any} */ message) => {
     if (!deepStrictEqualImpl(actual, expected)) {
       throw new AssertionError(message || 'Objects not deeply equal', actual, expected);
+    }
+  },
+  match: (/** @type {any} */ string, /** @type {RegExp} */ regexp, /** @type {any} */ message) => {
+    if (!regexp.test(String(string))) {
+      throw new AssertionError(
+        message || `String does not match pattern ${regexp}`,
+        string,
+        regexp
+      );
+    }
+  },
+  doesNotMatch: (/** @type {any} */ string, /** @type {RegExp} */ regexp, /** @type {any} */ message) => {
+    if (regexp.test(String(string))) {
+      throw new AssertionError(
+        message || `String matches pattern ${regexp}`,
+        string,
+        regexp
+      );
     }
   },
   throws: (/** @type {any} */ fn, /** @type {any} */ errorValidator, /** @type {any} */ message) => {
@@ -459,6 +477,17 @@ export const assert = {
       }
     }
   },
+  doesNotThrow: (/** @type {any} */ fn, /** @type {any} */ message) => {
+    try {
+      fn();
+    } catch (e) {
+      throw new AssertionError(
+        message || `Function threw unexpectedly: ${e}`,
+        e,
+        null
+      );
+    }
+  },
   rejects: async (/** @type {any} */ fn, /** @type {any} */ errorValidator, /** @type {any} */ message) => {
     let rejected = false;
     let caughtError = null;
@@ -489,10 +518,32 @@ export const assert = {
       }
     }
   },
+  doesNotReject: async (/** @type {any} */ fn, /** @type {any} */ message) => {
+    try {
+      await fn();
+    } catch (e) {
+      throw new AssertionError(
+        message || `Promise rejected unexpectedly: ${e}`,
+        e,
+        null
+      );
+    }
+  },
   fail: (/** @type {any} */ message) => {
     throw new AssertionError(message || 'Explicit fail', undefined, undefined);
   }
 };
+
+/**
+ * Assert module - Node.js compatible
+ */
+export const assert = assertMethods;
+
+/**
+ * Strict assert namespace - all strict mode assertions
+ * In Node.js, strict mode uses strict equality (===) for all comparisons
+ */
+export const strict = assertMethods;
 
 /**
  * Deep equality check implementation

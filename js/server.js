@@ -365,13 +365,40 @@ function handleTestProgress(req, res) {
         return res.writeHead(404).end('realm not found');
       }
       
-      // Format test progress as markdown
-      const markdown = formatTestProgress(payload);
+      // Get previous progress state (initialize if missing)
+      if (!page.lastTestProgress) {
+        page.lastTestProgress = { pass: 0, fail: 0, skip: 0 };
+      }
+      
+      const curr = payload.totals;
+      const prev = page.lastTestProgress;
+      
+      // Calculate deltas
+      const deltas = {
+        pass: (curr.pass ?? 0) - (prev.pass ?? 0),
+        fail: (curr.fail ?? 0) - (prev.fail ?? 0),
+        skip: (curr.skip ?? 0) - (prev.skip ?? 0)
+      };
+      
+      // Skip progress update if no new tests and not complete
+      if (!payload.complete && deltas.pass === 0 && deltas.fail === 0 && deltas.skip === 0) {
+        res.writeHead(200).end('ok');
+        return;
+      }
+      
+      // Update stored state for next comparison
+      page.lastTestProgress = curr;
+      
+      // Format test progress as markdown with deltas
+      const markdown = formatTestProgress({
+        ...payload,
+        deltas: payload.complete ? null : deltas
+      });
       
       // Write to realm's daebug log
       writer.writeTestProgress(page.file, markdown);
       
-      console.log('   𒀸 ', realmName, ':', payload.totals?.total || 0, 'tests');
+      console.log('   𒀸 ', realmName, ':', curr.pass ?? 0, 'pass,', curr.fail ?? 0, 'fail,', curr.skip ?? 0, 'skip');
       res.writeHead(200).end('ok');
     } catch (err) {
       console.error('   𒀸  error:', err);

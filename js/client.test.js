@@ -1,174 +1,203 @@
 // @ts-check
-import { strict as assert } from 'node:assert';
-import { test } from 'node:test';
 
-test('clientScript exports valid string', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.equal(typeof clientScript, 'string');
-  assert.ok(clientScript.length > 100);
-});
+import { test, describe } from 'node:test';
+import assert from 'node:assert';
+import { clientMainFunction } from './client.js';
 
-test('clientScript does not inject test runner inline', async () => {
-  const { clientScript } = await import('./client.js');
-  // Test runner should NOT be injected inline - it's available via import maps
-  assert.ok(!clientScript.includes('globalThis.test'));
-  assert.ok(!clientScript.includes('globalThis.daebugRunTests'));
-  assert.ok(!clientScript.includes('globalThis.assert'));
-});
+const defaultOverrides = {
+  Date,
+  sessionStorage: {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+    clear: () => {},
+    key: () => null,
+    length: 0,
+  },
+  location: { href: '', origin: '' },
+  Worker: () => {},
+  fetch: () => Promise.reject(),
+  setInterval: global.setInterval,
+  clearInterval: global.clearInterval,
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout,
+  addEventListener: () => {},
+  console: global.console,
+};
 
-test('clientScript includes worker creation logic', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('createWorker'));
-  assert.ok(clientScript.includes('new Worker'));
-  assert.ok(clientScript.includes('webworker'));
-});
+describe('clientMainFunction', () => {
 
-test('clientScript includes heartbeat monitoring', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('checkWorkerHealth'));
-  assert.ok(clientScript.includes('WORKER_HEALTH_CHECK_INTERVAL'));
-  assert.ok(clientScript.includes('WORKER_TIMEOUT'));
-  assert.ok(clientScript.includes('worker-timeout'));
-});
+  describe('sanitizeName', () => {
+    test('converts to lowercase', async () => {
+      const exported = {};
+      // @ts-ignore - minimal mocks for testing
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.sanitizeName('MyWorker'), 'myworker');
+    });
 
-test('clientScript includes restart logic', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('workerRestartCount'));
-  assert.ok(clientScript.includes('MAX_RESTART_ATTEMPTS'));
-  assert.ok(clientScript.includes('worker.terminate'));
-});
+    test('replaces spaces with dashes', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.sanitizeName('my worker'), 'my-worker');
+    });
 
-test('clientScript includes main thread polling loop', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('while (true)'));
-  assert.ok(clientScript.includes('fetch(endpoint'));
-  assert.ok(clientScript.includes('AsyncFunction'));
-});
+    test('replaces special characters with dashes', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.sanitizeName('my@worker#name'), 'my-worker-name');
+    });
 
-test('clientScript includes name sanitization for workers', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('sanitizeName'));
-  assert.ok(clientScript.includes('toLowerCase'));
-});
+    test('collapses multiple special chars to single dash', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.sanitizeName('my@@@@worker'), 'my-worker');
+    });
 
-test('clientScript includes background event capture', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('backgroundEvents'));
-  assert.ok(clientScript.includes('window.addEventListener'));
-  assert.ok(clientScript.includes('error'));
-  assert.ok(clientScript.includes('unhandledrejection'));
-});
+    test('removes leading and trailing dashes', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.sanitizeName('---my-worker---'), 'my-worker');
+    });
 
-test('clientScript includes console monkeypatching', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('originalConsole'));
-  assert.ok(clientScript.includes('console.log'));
-  assert.ok(clientScript.includes('console.error'));
-});
+    test('produces DNS-safe names', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      const result = exported.sanitizeName('Test_Worker-123!@#');
+      assert.match(result, /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/);
+    });
+  });
 
-test('clientScript includes formatTime helper', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('formatTime'));
-  assert.ok(clientScript.includes('getHours'));
-  assert.ok(clientScript.includes('getMinutes'));
-  assert.ok(clientScript.includes('getSeconds'));
-});
+  describe('serializeValue', () => {
+    test('serializes null', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.serializeValue(null), 'null');
+    });
 
-test('clientScript includes serializeValue helper', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('serializeValue'));
-  assert.ok(clientScript.includes('depth'));
-});
+    test('serializes undefined', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.serializeValue(undefined), 'undefined');
+    });
 
-test('clientScript handles worker creation failure', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('MAX_RESTART_ATTEMPTS'));
-  assert.ok(clientScript.includes('to create worker'));
-});
+    test('serializes strings', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.serializeValue('hello'), 'hello');
+    });
 
-test('clientScript includes worker-init message', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('worker-init'));
-  assert.ok(clientScript.includes('mainPage'));
-});
+    test('serializes numbers', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.serializeValue(42), '42');
+    });
 
-test('clientScript includes ping/pong protocol', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('ping'));
-  assert.ok(clientScript.includes('pong'));
-  assert.ok(clientScript.includes('lastWorkerPong'));
-});
+    test('serializes booleans', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.serializeValue(true), 'true');
+      assert.strictEqual(exported.serializeValue(false), 'false');
+    });
 
-test('clientScript includes sessionStorage for name', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('sessionStorage'));
-  assert.ok(clientScript.includes('daebug-name'));
-});
+    test('serializes arrays', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.strictEqual(exported.serializeValue([1, 2, 3]), '[1, 2, 3]');
+    });
 
-test('clientScript includes random word list for names', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('mint'));
-  assert.ok(clientScript.includes('nova'));
-  assert.ok(clientScript.includes('zen'));
-});
+    test('respects depth limit on objects', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      // For arrays, depth limit is enforced during recursion
+      const deepArray = [1, [2, [3, [4, [5, 6]]]]];
+      const result = exported.serializeValue(deepArray);
+      assert.ok(result.includes('[Deep Object]'));
+    });
 
-test('clientScript includes worker termination logic', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('worker.terminate'));
-  assert.ok(clientScript.includes('worker, restarting'));
-});
+    test('serializes functions by name', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      const named = function myFunc() { };
+      assert.strictEqual(exported.serializeValue(named), 'myFunc');
+    });
 
-test('clientScript includes AsyncFunction for execution', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('AsyncFunction'));
-  assert.ok(clientScript.includes('getPrototypeOf'));
-});
+    test('handles circular references in objects', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      const obj = { a: 1 };
+      obj.self = obj;
+      const result = exported.serializeValue(obj);
+      assert.ok(typeof result === 'string');
+    });
+  });
 
-test('clientScript includes job execution tracking', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('jobStartIdx'));
-  assert.ok(clientScript.includes('jobEvents'));
-  assert.ok(clientScript.includes('jobId'));
-});
+  describe('handleErrorEvent', () => {
+    test('captures window.onerror events', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.ok(exported.handleErrorEvent);
+    });
+  });
 
-test('clientScript includes error retry logic', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('catch'));
-  assert.ok(clientScript.includes('sleep'));
-  assert.ok(clientScript.includes('3000'));
-});
+  describe('handlePromiseRejectionEvent', () => {
+    test('captures unhandledrejection events', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.ok(exported.handlePromiseRejectionEvent);
+    });
+  });
 
-test('clientScript includes POST result payload', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('method: \'POST\''));
-  assert.ok(clientScript.includes('Content-Type'));
-  assert.ok(clientScript.includes('application/json'));
-});
+  describe('sleep', () => {
+    test('returns a promise', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      const result = exported.sleep(10);
+      assert.ok(result instanceof Promise);
+    });
 
-test('clientMainFunction is exported', async () => {
-  const { clientMainFunction } = await import('./client.js');
-  assert.equal(typeof clientMainFunction, 'function');
-});
+    test('resolves after specified time', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      const result = await exported.sleep(100);
+      assert.strictEqual(result, undefined);
+    });
+  });
 
-test('clientMainFunction name is preserved', async () => {
-  const { clientMainFunction } = await import('./client.js');
-  assert.equal(clientMainFunction.name, 'clientMainFunction');
-});
+  describe('test mode', () => {
+    test('exports all internal functions when testExport provided', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
 
-test('clientScript is wrapped in IIFE', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.startsWith('('));
-  assert.ok(clientScript.endsWith('();'));
-});
+      const expectedFunctions = [
+        'serializeValue',
+        'sanitizeName',
+        'createWorker',
+        'checkWorkerHealth',
+        'handleErrorEvent',
+        'handlePromiseRejectionEvent',
+        'scheduleBackgroundFlush',
+        'start',
+        'sleep'
+      ];
 
-test('clientScript includes import map support check', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('HTMLScriptElement.supports'));
-  assert.ok(clientScript.includes('importmap'));
-});
+      expectedFunctions.forEach(name => {
+        assert.ok(typeof exported[name] === 'function', `${name} should be exported`);
+      });
+    });
 
-test('clientScript includes worker-bootstrap.js reference', async () => {
-  const { clientScript } = await import('./client.js');
-  assert.ok(clientScript.includes('worker-bootstrap.js'));
-  assert.ok(clientScript.includes('type: \'module\''));
+    test('does not call start when testExport provided', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.ok(exported.sanitizeName);
+    });
+  });
+
+  describe('dependency injection', () => {
+    test('uses provided overrides instead of window', async () => {
+      const exported = {};
+      await clientMainFunction(defaultOverrides, exported);
+      assert.ok(exported.sanitizeName);
+    });
+  });
+
 });

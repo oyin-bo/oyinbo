@@ -13,17 +13,43 @@ export function clockFmt(ms) {
 }
 
 /**
+ * Format duration with thousand separators and appropriate units
+ * @param {number} ms Duration in milliseconds
+ * @returns {string}
+ */
+export function formatDuration(ms) {
+  if (ms < 2000) {
+    return `${ms}ms`;
+  }
+  const seconds = (ms / 1000).toFixed(1);
+  return `${parseFloat(seconds).toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})}s`;
+}
+
+/**
  * Format test results header line
  * @param {{pass: number, fail: number, skip: number}} totals
  * @param {number} duration Duration in milliseconds
  * @param {boolean} complete Whether test run is complete
+ * @param {{pass?: number, fail?: number, skip?: number} | null} deltas Optional delta counts since last update
  * @returns {string}
  */
-export function formatTestResultsHeader(totals, duration, complete = true) {
+export function formatTestResultsHeader(totals, duration, complete = true, deltas = null) {
+  const durationStr = formatDuration(duration);
+  
   if (complete) {
-    return `## Test Results: ${totals.pass} pass, ${totals.fail} fail, ${totals.skip} skip (${duration}ms)`;
+    return `## Test Results: ${totals.pass} pass, ${totals.fail} fail, ${totals.skip} skip (${durationStr})`;
   }
-  return `## Test Progress: ${totals.pass}/${totals.pass + totals.fail} pass, ${totals.fail} fail (${duration}ms)`;
+  
+  // Progress update with deltas
+  if (deltas && ((deltas.pass ?? 0) > 0 || (deltas.fail ?? 0) > 0 || (deltas.skip ?? 0) > 0)) {
+    let deltaStr = '';
+    if ((deltas.pass ?? 0) > 0) deltaStr += `+${deltas.pass} pass`;
+    if ((deltas.fail ?? 0) > 0) deltaStr += (deltaStr ? ', ' : '') + `+${deltas.fail} fail`;
+    if ((deltas.skip ?? 0) > 0) deltaStr += (deltaStr ? ', ' : '') + `+${deltas.skip} skip`;
+    return `## Test Progress: ${totals.pass}/${totals.pass + totals.fail} pass, ${deltaStr} (${durationStr})`;
+  }
+  
+  return `## Test Progress: ${totals.pass}/${totals.pass + totals.fail} pass, ${totals.fail} fail (${durationStr})`;
 }
 
 /**
@@ -64,15 +90,16 @@ export function formatTestItem(test) {
  *   duration: number,
  *   recentTests?: Array<any>,
  *   allTests?: Array<any>,
- *   complete?: boolean
+ *   complete?: boolean,
+ *   deltas?: {pass?: number, fail?: number, skip?: number} | null
  * }} payload Test progress data
  * @returns {string}
  */
 export function formatTestProgress(payload) {
-  const { totals, duration, recentTests, allTests, complete = false } = payload;
+  const { totals, duration, recentTests, allTests, complete = false, deltas = null } = payload;
   const lines = [];
   
-  lines.push(formatTestResultsHeader(totals, duration, complete));
+  lines.push(formatTestResultsHeader(totals, duration, complete, deltas));
   lines.push('');
   
   // For final results, use allTests; for progress updates, use recentTests

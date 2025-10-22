@@ -28,7 +28,13 @@ export function durationFmt(ms) {
  */
 export function findFooter(lines) {
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].startsWith('> Write code in a fenced JS block')) return i;
+    if (lines[i].startsWith('> Write code in a fenced JS block')) {
+      const prevLine = lines[i - 1]?.trim() || '';
+      if (prevLine.startsWith('--') && prevLine.endsWith('--') && prevLine.replace(/-/g, '').trim() === '')
+        return i -1;
+      else
+        return i;
+    }
   }
   return -1;
 }

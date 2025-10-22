@@ -14,7 +14,8 @@ import {
   formatCodeBlock,
   formatResultBlocks,
   formatFooter,
-  formatBackgroundEvent
+  formatBackgroundEvent,
+  ensureFileHeader
 } from './repl.template.js';
 
 /**
@@ -25,12 +26,29 @@ import {
 export function writeDiagnostic(file, message) {
   if (!existsSync(file)) {
     // File doesn't exist yet, create it with diagnostic
-    const content = `# Worker Diagnostics\n\n> ${message}\n\n${formatFooter()}`;
+    let lines = [];
+    lines = ensureFileHeader(lines, 'System Diagnostic');
+    const now = Date.now();
+    const timestamp = clockFmt(now);
+    
+    const content = [
+      ...lines,
+      '',
+      `### 🗣️System at ${timestamp}`,
+      '```Text',
+      message,
+      '```',
+      '',
+      formatFooter()
+    ].join('\n');
+    
     writeFileSync(file, content, 'utf8');
     return;
   }
   
-  const lines = readFileSync(file, 'utf8').split('\n');
+  let lines = readFileSync(file, 'utf8').split('\n');
+  lines = ensureFileHeader(lines, 'System Diagnostic');
+  
   const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
   const now = Date.now();
   const timestamp = clockFmt(now);
@@ -38,7 +56,7 @@ export function writeDiagnostic(file, message) {
   const output = [
     ...lines.slice(0, footerIdx),
     '',
-    `> **System** at ${timestamp}`,
+    `### 🗣️System at ${timestamp}`,
     '```Text',
     message,
     '```',
@@ -61,12 +79,24 @@ export function writeTestProgress(file, markdown) {
     if (dir && !existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    const content = `${markdown}\n\n${formatFooter()}`;
+    let lines = [];
+    lines = ensureFileHeader(lines, 'Test Progress');
+    
+    const content = [
+      ...lines,
+      '',
+      markdown,
+      '',
+      formatFooter()
+    ].join('\n');
+    
     writeFileSync(file, content, 'utf8');
     return;
   }
   
-  const lines = readFileSync(file, 'utf8').split('\n');
+  let lines = readFileSync(file, 'utf8').split('\n');
+  lines = ensureFileHeader(lines, 'Test Progress');
+  
   const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
   
   const output = [
@@ -89,7 +119,9 @@ export function writeTestProgress(file, markdown) {
 export function writeBackgroundEvents(file, events, timestamp) {
   if (!existsSync(file)) return; // No file yet, can't write background events
   
-  const lines = readFileSync(file, 'utf8').split('\n');
+  let lines = readFileSync(file, 'utf8').split('\n');
+  lines = ensureFileHeader(lines, 'Background Events');
+  
   const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
   
   const pageName = file.match(/([^/\\]+)\.md$/)?.[1] || 'page';
@@ -98,7 +130,7 @@ export function writeBackgroundEvents(file, events, timestamp) {
   const output = [
     ...lines.slice(0, footerIdx),
     '',
-    `> **${pageName}** background at ${timestamp}`,
+    `### 🗣️${pageName} background at ${timestamp}`,
     ...blocks,
     '',
     formatFooter()
@@ -139,7 +171,10 @@ export function writeReply(job, result) {
       console.warn(`[writer] writeReply: target file missing ${job.page.file}; skipping write`);
     return;
   }
-  const lines = readFileSync(job.page.file, 'utf8').split('\n');
+  
+  let lines = readFileSync(job.page.file, 'utf8').split('\n');
+  lines = ensureFileHeader(lines, job.page.name + ' Session');
+  
   const execBlock = findExecutingBlock(lines, job.page.name, job.agent);
   let footerIdx = findFooter(lines);
   if (footerIdx < 0) footerIdx = lines.length;
@@ -152,8 +187,15 @@ export function writeReply(job, result) {
   
   let output;
   if (execBlock) {
+    // Remove the executing block (header + placeholder lines)
+    const beforeExec = lines.slice(0, execBlock.headerIdx);
+    const afterPlaceholder = lines.slice(execBlock.placeholderIdx + 1);
+    const combinedLines = [...beforeExec, ...afterPlaceholder];
+    const newFooterIdx = findFooter(combinedLines);
+    const finalFooterIdx = newFooterIdx >= 0 ? newFooterIdx : combinedLines.length;
+    
     output = [
-      ...lines.slice(0, footerIdx),
+      ...combinedLines.slice(0, finalFooterIdx),
       '',
       reply,
       ...blocks,
@@ -187,12 +229,15 @@ export function writeExecuting(job) {
       console.warn(`[writer] writeExecuting: target file missing ${job.page.file}; skipping write`);
     return;
   }
-  const lines = readFileSync(job.page.file, 'utf8').split('\n');
+  
+  let lines = readFileSync(job.page.file, 'utf8').split('\n');
+  lines = ensureFileHeader(lines, job.page.name + ' Session');
+  
   const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
   const now = Date.now();
   const agent = formatAgentHeader(job.agent, job.page.name, job.requestedAt || now);
   const code = formatCodeBlock(job.code);
-  const executing = `> **${job.page.name}** to ${job.agent} at ${clockFmt(now)}`;
+  const executing = `#### 👍${job.page.name} to ${job.agent} at ${clockFmt(now)}`;
   
   let output;
   if (job.requestHasFooter === false) {

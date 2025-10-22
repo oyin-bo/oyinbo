@@ -43,8 +43,8 @@ describe('writeReply with requestHasFooter false', () => {
     writeReply(job, result);
     
     const output = readFileSync(testFile, 'utf8');
-    assert.ok(output.includes('> **copilot** to test-page at'));
-    assert.ok(output.includes('> **test-page** to copilot at'));
+    assert.ok(output.includes('### 🗣️copilot to test-page at'));
+    assert.ok(output.includes('#### 👍test-page to copilot at'));
     assert.ok(output.includes('```JSON\n42\n```'));
     assert.ok(output.includes('Write code in a fenced JS block'));
   });
@@ -53,7 +53,7 @@ describe('writeReply with requestHasFooter false', () => {
     const content = [
       '# Test',
       '',
-      '> **copilot** to test-page at 10:00:00',
+      '### 🗣️copilot to test-page at 10:00:00',
       '```js',
       'const y = 2;',
       '```'
@@ -76,7 +76,7 @@ describe('writeReply with requestHasFooter false', () => {
     writeReply(job, result);
     
     const output = readFileSync(testFile, 'utf8');
-    const agentHeaders = (output.match(/> \*\*copilot\*\* to test-page at/g) || []).length;
+    const agentHeaders = (output.match(/### 🗣️copilot to test-page at/g) || []).length;
     assert.strictEqual(agentHeaders, 1); // Should not duplicate
   });
 
@@ -106,7 +106,7 @@ describe('writeReply with requestHasFooter false', () => {
     writeReply(job, result);
     
     const output = readFileSync(testFile, 'utf8');
-    assert.ok(output.includes('> **copilot** to test-page at'));
+    assert.ok(output.includes('### 🗣️copilot to test-page at'));
     assert.ok(output.includes('```Error\nTest error\n```'));
   });
 
@@ -132,12 +132,12 @@ describe('writeReply with executing block', () => {
     const content = [
       '# Test',
       '',
-      '> **copilot** to test-page at 10:00:00',
+      '### 🗣️copilot to test-page at 10:00:00',
       '```JS',
       'await sleep(1000);',
       '```',
       '',
-      '> **test-page** to copilot at 10:00:01',
+      '#### 👍test-page to copilot at 10:00:01',
       'executing (0s)',
       '',
       '----------------------------------------------------------------------',
@@ -170,7 +170,7 @@ describe('writeReply with executing block', () => {
     const content = [
       '# Test',
       '',
-      '> **test-page** to copilot at 10:00:00',
+      '#### 👍test-page to copilot at 10:00:00',
       'executing (0s)',
       '',
       '----------------------------------------------------------------------',
@@ -222,7 +222,7 @@ describe('writeExecuting with requestHasFooter false', () => {
     const content = [
       '# Test',
       '',
-      '> **copilot** to test-page at 10:00:00',
+      '### 🗣️copilot to test-page at 10:00:00',
       '```js',
       'const x = 1;',
       '```'
@@ -244,7 +244,7 @@ describe('writeExecuting with requestHasFooter false', () => {
     writeExecuting(job);
     
     const output = readFileSync(testFile, 'utf8');
-    assert.ok(output.includes('> **test-page** to copilot at'));
+    assert.ok(output.includes('#### 👍test-page to copilot at'));
     assert.ok(output.includes('executing (0s)'));
     assert.ok(output.includes('Write code in a fenced JS block'));
   });
@@ -274,8 +274,8 @@ describe('writeExecuting with requestHasFooter false', () => {
     writeExecuting(job);
     
     const output = readFileSync(testFile, 'utf8');
-    assert.ok(output.includes('> **copilot** to test-page at'));
-    assert.ok(output.includes('> **test-page** to copilot at'));
+    assert.ok(output.includes('### 🗣️copilot to test-page at'));
+    assert.ok(output.includes('#### 👍test-page to copilot at'));
   });
 
   test('cleanup', () => {

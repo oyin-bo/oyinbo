@@ -79,12 +79,12 @@ export function writeTestProgress(file, markdown) {
     if (dir && !existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
+    /** @type {string[]} */
     let lines = [];
     lines = ensureFileHeader(lines, 'Test Progress');
     
     const content = [
       ...lines,
-      '',
       markdown,
       '',
       formatFooter()

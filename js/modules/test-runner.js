@@ -241,9 +241,20 @@ export async function daebugRunTests(options) {
       testResult.fullTs = fullTsFmt(completed);
       results.tests.push(testResult);
       
+      // Ensure recentTests use the expected shape (status: 'pass'|'fail'|'skip')
+      const recentTests = [{
+        name: testResult.name,
+        suite: testResult.suite,
+        status: testResult.skipped ? 'skip' : (testResult.passed ? 'pass' : 'fail'),
+        duration: testResult.duration,
+        error: testResult.error,
+        fullTs: testResult.fullTs,
+        completedAt: testResult.completedAt
+      }];
+
       await streamProgress({
         complete: false,
-        recentTests: [testResult],
+        recentTests,
         totals: { pass: results.passed, fail: results.failed, skip: results.skipped, total: results.total },
         duration: Date.now() - startTime
       });

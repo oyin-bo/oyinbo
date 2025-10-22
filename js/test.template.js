@@ -76,7 +76,7 @@ export function formatTestItem(test) {
   
   if (test.error) {
     lines.push(`\`\`\``);
-    lines.push(test.error.split('\n').map(l => `  ${l}`).join('\n'));
+    lines.push(...test.error.split('\n'));
     lines.push(`\`\`\``);
   }
   

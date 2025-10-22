@@ -101,7 +101,6 @@ export function writeTestProgress(file, markdown) {
   
   const output = [
     ...lines.slice(0, footerIdx),
-    '',
     markdown,
     '',
     formatFooter()

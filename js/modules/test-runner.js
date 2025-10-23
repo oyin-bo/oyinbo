@@ -148,12 +148,11 @@ export async function daebugRunTests(options) {
     // Import test files
     for (const file of files) {
       try {
-        // Normalize file path to be absolute from root
-        // If relative path, make it absolute from root (/)
-        let resolvedFile = file;
-        if (!file.startsWith('/') && !file.startsWith('http')) {
-          resolvedFile = '/' + file.replace(/^\.\//, '');
-        }
+        // Resolve file path for import
+        // Remove leading slash if present - import paths should be relative to server root
+        let resolvedFile = file.replace(/^\//, '');
+        // Ensure no ./ prefix for import
+        resolvedFile = resolvedFile.replace(/^\.\//, '');
         // Add cache-busting query parameter to force re-import on each test run
         resolvedFile += `?t=${Date.now()}`;
         await import(resolvedFile);

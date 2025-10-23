@@ -32,6 +32,7 @@ export async function clientMainFunction(overrides, testExport) {
   let workerHealthCheckInterval = null;
   let lastWorkerPong = Date.now();
   let workerRestartCount = 0;
+  let pageName = ''; // Page name for worker naming - set by start()
   const MAX_RESTART_ATTEMPTS = 5;
   const WORKER_HEALTH_CHECK_INTERVAL = 10000;
   const WORKER_TIMEOUT = 20000;
@@ -96,7 +97,7 @@ export async function clientMainFunction(overrides, testExport) {
     }
 
     try {
-      const workerName = sanitizeName(name + '-webworker');
+      const workerName = sanitizeName(pageName + '-webworker');
 
       // Create worker from served module (inherits import maps)
       const workerUrl = location.origin + '/daebug/worker-bootstrap.js'; // TODO: serve from root path, not directory
@@ -117,7 +118,7 @@ export async function clientMainFunction(overrides, testExport) {
       fetch('/daebug?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'worker-init', mainPage: name })
+        body: JSON.stringify({ type: 'worker-init', mainPage: pageName })
       }).catch(() => { });
 
       return w;
@@ -133,7 +134,7 @@ export async function clientMainFunction(overrides, testExport) {
 
     if (timeSinceLastPong > WORKER_TIMEOUT) {
       console.warn('👾𝘂𝗻𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗶𝘃𝗲 worker, restarting');
-      const workerName = sanitizeName(name + '-webworker');
+      const workerName = sanitizeName(pageName + '-webworker');
       fetch('/daebug?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -320,6 +321,9 @@ export async function clientMainFunction(overrides, testExport) {
       name = (Math.floor(Math.random() * 15) + 5) + '-' + words[Math.floor(Math.random() * words.length)] + '-' + time[0] + time[1] + '-' + time[2];
       sessionStorage.setItem('daebug-name', name);
     }
+
+    // Make page name available to worker creation functions
+    pageName = name;
 
     monkeyPatchConsole();
 

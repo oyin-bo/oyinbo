@@ -1,174 +1,257 @@
-# Rust orchestration & HTTP server for the File-based Markdown REPL
+# 👾Daebug: Rust + WASM Vision
 
-Purpose
+The Future of Developer Debugging Tools
 
-This document describes a design and implementation plan for using Rust only as the orchestration layer and HTTP server for the file-based Markdown REPL (see `docs/1-jsrepl.md`) and the Web Worker + Remote Test Runner proposal (`docs/1.3-workers-and-test-runner.md`). Important constraint: Rust will NOT execute JavaScript (or other REPL code); all code execution happens in host runtimes (browser main thread, web workers, Node). Rust provides reliable, single-binary server-side behaviour, deterministic file handling, and strong concurrency/IO guarantees.
+This document envisions 👾Daebug reimagined in Rust, compiled to WebAssembly, and distributed via npm as a universal debugging toolkit. The Rust implementation will deliver all current JavaScript features while unlocking new capabilities impossible in pure Node.js: native performance, memory safety, cross-platform consistency, and seamless integration with any JavaScript toolchain through WASM.
 
-High-level goals
+## Evolution Since Original Vision
 
-- Provide a stable Rust server that manages the per-instance file lifecycle, master registry (`daebug.md`), and HTTP endpoints used by browser shims and remote realms.
-- Implement worker registration, heartbeat handling, job dispatch, result ingestion, background-event buffering, and safe atomic file writes in Rust.
-- Expose a compact, well-documented HTTP API that browser/client JS shims and Node clients can use for polling, posting jobs/results, reading/writing per-instance logs, and registering worker realms.
-- Orchestrate the Remote Test Runner lifecycle by coordinating module load requests and result collection, but delegate actual module import and test execution to the host clients.
+The current JavaScript implementation has evolved significantly:
 
-Why Rust-only orchestration is a good fit
+**Achieved Features** (all must be preserved in Rust):
+- **npx distribution**: Global CLI tool (`npx daebug`) with intelligent port derivation and multi-project support
+- **Real-time background event capture**: Console logs, unhandled errors, promise rejections with streaming during long jobs
+- **Integrated test runner**: `--test` flag for running browser-based test suites with progress streaming
+- **Rich Markdown formatting**: Hierarchical heading structure with outline navigation and emoji indicators
+- **Build tool plugins**: Conceptual architecture for esbuild and Vite integration
+- **Dynamic executing regions**: Real-time placeholder updates showing job progress
+- **Worker realm support**: Automatic web worker creation with independent REPL sessions
+- **Multi-page orchestration**: Single server managing multiple browser contexts
 
-- Robust IO: Rust's standard and async ecosystems (tokio, async-std) provide reliable file-system operations, high-concurrency HTTP servers (hyper, axum), and careful handling of atomic writes.
-- Single trusted server process: avoids brittle JS/Node server drift across environments and gives deterministic behaviour for file-based logs and registry updates.
-- Safety: memory safety and explicit error handling reduce server-side crashes that could corrupt per-instance files.
-- Performance headroom for many simultaneous connected realms and logs.
+**New Capabilities Through Rust + WASM**:
+- Zero-dependency binary distribution via npm (no Node.js version conflicts)
+- Sub-millisecond file watching and parsing through native performance
+- Concurrent job execution across thousands of realms without event loop blocking
+- Memory-safe multi-threaded file I/O with zero corruption risk
+- Browser-native execution: WASM module running directly in DevTools or browser extensions
+- Cross-compilation for edge computing: debug embedded systems, IoT devices, mobile apps
+- Deterministic debugging: reproducible behavior across all platforms without runtime quirks
 
-Core responsibilities for the Rust server
+## The Rust + WASM Architecture
 
-1. Master registry management (`daebug.md`)
-   - Maintain, update, and atomically write the registry file. Track connected realms, last heartbeat, state (idle/executing/failed), and pointers to per-instance files.
+**Core Philosophy**: Rust for orchestration, WASM for universal distribution, JavaScript for execution.
 
-2. Per-instance log management (per `docs/1-jsrepl.md`)
-   - Provide endpoints to read and write per-instance files.
-   - Validate appended chunks for required grammar (agent request header, fenced blocks) before accepting them as candidate requests.
-   - When accepting a request from a client, atomically remove the footer, insert server-managed request header and executing-announcement placeholder, and track the job in-memory.
-   - On receiving results from realm clients, append reply headers, result fences, background events, and re-append the canonical footer. Use a safe write strategy (write to temp-file + rename) to avoid corruption.
+The Rust implementation becomes three deployment modes:
 
-3. Job lifecycle orchestration
-   - Track job states: requested → dispatched → started → finished/failed/timeout.
-   - Provide an HTTP-based job fetch endpoint for realm clients (poll-on-demand or long-poll) that returns code to execute and job metadata.
-   - Accept postback results (JSON + fenced payloads) and persist them to per-instance files.
-   - Implement job timeouts and write appropriate timeout/diagnostic entries.
+### Mode 1: Native Binary (Maximum Performance)
+Single-file executable for local development. No Node.js required.
+- Runs as standalone HTTP server on localhost
+- Native file system access with inotify/FSEvents optimization
+- Zero startup latency, instant file watching
+- Perfect for CI/CD pipelines and production debugging
 
-4. Background event capture API
-   - Accept background event posts (console, window.onerror, unhandledrejection) from clients and buffer them per-instance until a job reply is written.
-   - Serialize background events to file following the compression rules (first-2 / ellipsis / last-8) when flushing.
+### Mode 2: npm Package with WASM Core (Universal Distribution)
+WASM orchestration engine with thin Node.js wrapper for file system access.
+- `npx daebug` works identically to current JS version
+- Core logic compiled to WASM, runs in Node.js runtime
+- Seamless upgrade path: same CLI, same files, faster execution
+- Installable on any platform supporting Node 18+
 
-5. Worker realm registration, heartbeat and restart logging
-   - Accept worker registration requests from page shims (worker name, realm id, metadata).
-   - Expose endpoints for the main thread to proxy worker heartbeats and messages.
-   - Provide server-side diagnostics and write restart/timeouts to per-instance logs when workers fail to report.
+### Mode 3: Browser-Native Extension (Revolutionary)
+Pure WASM module running in browser via Chrome Extension or DevTools plugin.
+- No external server required
+- Files managed through browser's File System Access API or extension storage
+- REPL sessions survive page reloads and browser restarts
+- Perfect for debugging production sites and remote development
 
-6. Test-runner orchestration (coordinator only)
-   - Provide endpoints to trigger test-run orchestration: a client requests a test run, the server records the run as a job and notifies the target realm to import the requested modules.
-   - Collect structured test results posted back by the realm and persist them into the per-instance file in the expected formatted form.
-   - The server does not import or execute test modules; it only coordinates which files to import and collects results.
+## Why Rust Unlocks Unprecedented Capabilities
 
-7. Security, auth and access controls
-   - Provide optional auth (API keys, HMAC, local-only binding) to ensure only authorized clients can read/write per-instance files.
-   - Sanitize filenames and inputs to prevent path traversal and injection into the repository.
+**Memory Safety Without Garbage Collection**:
+Current JS implementation must carefully manage memory for long-running REPL sessions. Rust eliminates entire classes of memory leaks and corruption, especially critical when managing hundreds of concurrent page connections with streaming background events.
 
-HTTP API surface (suggested endpoints)
+**Fearless Concurrency**:
+File watching, HTTP serving, job dispatching, and result writing can all happen on separate threads without data races. The current JS implementation serializes these operations through the event loop. Rust parallelizes them with compiler-verified safety.
 
-- GET  /health
-  - Server health and simple diagnostics.
+**Zero-Copy Parsing**:
+Markdown parsing currently allocates strings for every request extraction. Rust can parse files with zero allocations using string slices and arena allocators, reducing memory pressure by orders of magnitude for large REPL logs.
 
-- GET  /daebug.md
-  - Return current master registry (for convenience / browser fetch)
+**Native Binary Performance**:
+File I/O, HTTP routing, and Markdown generation become 10-100x faster. Background event capture can handle thousands of events per second without dropping messages. Test runner can orchestrate massive parallel test suites without overwhelming the event loop.
 
-- GET  /instances/{name}
-  - Read per-instance file contents (for editors and clients to sync)
+**Universal Binary Distribution**:
+Single `cargo build --release` produces binaries for Linux, macOS, Windows, ARM, RISC-V. No "works on my machine" issues with Node.js versions, npm package resolution, or platform-specific native modules.
 
-- POST /instances/{name}/append
-  - Client appends a chunk below footer. Server validates and either accepts (converts to job) or treats as draft. Payload includes agentName, chunk text, and client signature/metadata.
+**WASM Portability**:
+Compile once to WASM, run anywhere: Node.js, Deno, Bun, browser extensions, in-browser DevTools, Cloudflare Workers, edge computing platforms. The orchestration logic becomes a truly universal debugging primitive.
 
-- POST /instances/{name}/jobs/ack
-  - Server marks a job accepted and returns jobId.
+## Feature Parity and Enhancement
 
-- GET  /instances/{name}/jobs/poll?workerId={id}
-  - Realm client polls for pending job. Server responds with job metadata and code to execute. Supports long-polling.
+Every feature of the current JavaScript implementation, enhanced:
 
-- POST /instances/{name}/jobs/{jobId}/result
-  - Realm client posts execution result: status, duration, result payload(s), background events. Server validates and writes reply blocks.
+### File-Based REPL Protocol
+- **Current**: Markdown parsing with regex and string manipulation
+- **Rust**: Zero-copy parsing with `nom` or custom parser combinators
+- **Enhancement**: Incremental parsing—only parse changed regions of file
 
-- POST /instances/{name}/background
-  - Post background-only events when no job is active. Server flushes them into file as background-only update.
+### Master Registry Management
+- **Current**: Periodic JSON serialization to `daebug.md`
+- **Rust**: Structured binary cache with human-readable Markdown persistence
+- **Enhancement**: Millisecond-precision page lifecycle tracking, automatic stale entry pruning
 
-- POST /workers/register
-  - Register a worker realm (workerName, parentPage, initial metadata).
+### Background Event Capture
+- **Current**: In-memory event buffering with 10-event truncation
+- **Rust**: Lock-free ring buffer with configurable retention policies
+- **Enhancement**: Capture millions of events without memory bloat; query historical events by timestamp
 
-- POST /workers/{workerName}/heartbeat
-  - Worker or main thread posts heartbeat; server updates master registry and may schedule restart diagnostics if missing.
+### Test Runner Orchestration
+- **Current**: Single-threaded test dispatch with manual progress streaming
+- **Rust**: Parallel test execution across multiple pages with automatic progress aggregation
+- **Enhancement**: Smart test distribution—detect slow tests and parallelize aggressively
 
-- POST /tests/run
-  - Request a coordinated test run: request body lists instance name, files to import, timeout, and run metadata. Server enqueues a job and the realm client will import modules and post back structured test results.
+### HTTP Server
+- **Current**: Node.js http module with manual routing
+- **Rust**: `axum` or `actix-web` with zero-copy body handling
+- **Enhancement**: WebSocket support for sub-millisecond REPL latency; HTTP/2 and HTTP/3 ready
 
-Design notes on append/accept flow
+### Client Script Injection
+- **Current**: String replacement in HTML
+- **Rust**: Streaming HTML transformer with minimal allocations
+- **Enhancement**: Content Security Policy aware; automatic nonce generation
 
-- Accept-on-append: clients append below the canonical footer. The server must validate the appended chunk and only accept it as a job when it contains the request header and at least one complete fenced code block.
-- Atomic file update: implement write via create-temp-file + fsync + rename to target path on POSIX-like platforms. On Windows use equivalent safe replace (write to temp, atomically replace via std APIs where possible). After write, re-open and verify canonical footer/header presence; retry a small number of times if verification fails.
-- In-memory job snapshot: store the agentName, pageName, requestedAt, original tail snapshot, background buffer, and placeholder timestamps for the active job while it is executing.
+### Worker Realm Management
+- **Current**: Browser-side worker creation with polling heartbeat
+- **Rust**: Server-tracked worker lifecycle with automatic restart policies
+- **Enhancement**: Worker health metrics; automatic degradation detection
 
-Concurrency model and persistence
+### Build Tool Plugins
+- **Current**: Conceptual Vite/esbuild integration
+- **Rust**: Native plugins via FFI or WASM modules
+- **Enhancement**: Rollup, Webpack, Parcel support; universal plugin interface
 
-- Per-instance files are the authoritative source of truth. Server should treat them carefully: always read the file before modifying (no blind writes based on stale memory state).
-- Use a per-instance lock (in-memory async Mutex keyed by instance name) to ensure only one writer modifies a file at a time.
-- Use an append/replace strategy: read entire file, compute new content, write to temp, rename. Avoid partial in-place writes.
+### npx Distribution
+- **Current**: JavaScript-based CLI with port hashing
+- **Rust**: Native binary or WASM-backed CLI
+- **Enhancement**: Instant startup; no Node.js dependency conflicts; works in restricted environments
 
-Client expectations (JS shims / host runtimes)
+## Beyond Parity: Rust-Exclusive Features
 
-- The browser/node shims remain responsible for executing JS code and importing modules. The server will only coordinate: it will post jobs and accept results.
-- Clients should expose endpoints or shim hooks to run code and to capture console/errors and serialise them when posting results.
-- Clients must support the job polling API and the worker registration/heartbeat API.
+**Real-Time Collaborative Debugging**:
+Multiple agents (human or LLM) interacting with the same page simultaneously. Rust's concurrency primitives enable operational transform algorithms for conflict-free collaborative Markdown editing. Imagine two LLMs debugging different aspects of the same page, their REPL sessions merging in real-time.
 
-Test-runner orchestration specifics
+**Distributed Debugging Mesh**:
+Single `daebug.md` registry coordinating REPL sessions across edge nodes, cloud functions, mobile apps, and IoT devices. Rust's networking stack enables peer-to-peer discovery and synchronization. Debug a CDN cache miss on a Tokyo edge node from a REPL command in San Francisco.
 
-- When a test run is requested, the server enqueues a job specifying which module URLs the realm should import and what timeout to enforce.
-- The realm client performs dynamic imports and registers tests locally (test/describe/it). Tests are executed in the realm and the client collects per-test results.
-- The client posts a structured TestResults JSON back to the server which persists it in the per-instance file using the same reply + background format described in `docs/1-jsrepl.md`.
+**Record and Replay**:
+Deterministic recording of all REPL interactions with millisecond-precision timestamps. Replay debugging sessions at any speed—step forward, rewind, fast-forward. Rust's memory safety ensures perfect replay fidelity without accumulating state corruption.
 
-Security and sandboxing
+**Live Binary Patching**:
+For compiled applications (Rust, Go, C++), use Rust's FFI to inject debug hooks into running binaries. Query stack frames, inspect heap allocations, modify variables—REPL for native code execution, not just JavaScript.
 
-- Because execution occurs on client-side realms, the server must validate that posted results match expected jobIds (to prevent spurious writes).
-- Consider HMACing job payloads so clients can prove they received the authorized job (or sign results) when operating on untrusted networks.
-- The server should default to binding to localhost for local development and require explicit configuration to listen on external interfaces.
+**Embedded System Debugging**:
+Cross-compile Rust orchestrator for ARM Cortex-M, RISC-V, ESP32. Debug microcontrollers via serial connection with the same file-based REPL protocol. IoT device logs appear in `daebug/*.md` files as if they were browser pages.
 
-Monitoring, diagnostics and operator UX
+**Kernel Module Integration**:
+Rust's safety guarantees enable kernel-space debugging modules. Trace system calls, inspect page tables, monitor interrupt handlers—operating system internals become REPL-accessible.
 
-- Expose a small admin UI (optional) or debug endpoints to list active instances, jobs-in-flight, worker status, and recent logs.
-- Emit structured logs (JSON) with job lifecycle events so simple monitors can alert on high failure rates or frequent worker restarts.
+**GPU Shader Debugging**:
+WebGPU shaders execute on GPU, but Rust orchestrator can inject validation kernels and capture intermediate outputs. Debug shader compilation failures and runtime errors through REPL commands that control GPU execution.
 
-Testing strategy
+**Blockchain Smart Contract Debugging**:
+Deploy Rust REPL orchestrator on blockchain VMs (Solana, NEAR, Polkadot). Debug smart contract execution with step-through evaluation and state inspection. REPL logs become on-chain audit trails.
 
-- Unit tests (Rust): parser and validation logic for agent request header detection, fence extraction, footer behaviour, background event compression, and atomic write helpers.
-- Integration tests (Rust + Node shim): run an integration scenario that spins up the Rust server, posts an append that becomes a job, simulate a realm client that polls and posts a result, and assert the per-instance file contains correct reply blocks.
-- End-to-end manual demo: run server locally and load a sample `browser-shim.js` in a test page that polls server endpoints and posts results.
+## Performance Targets
 
-Implementation roadmap (concrete steps)
+The Rust implementation should achieve:
 
-1) Crate skeleton
-   - `daebug-server` Rust crate using `tokio` + `axum` or `hyper` for HTTP, `serde`/`serde_json` for payloads, and `tokio::fs` for async file ops.
+- **Startup latency**: < 10ms (vs ~200ms current Node.js)
+- **File watch latency**: < 1ms from disk write to job dispatch (vs ~150ms debounced)
+- **Request parsing**: < 100µs for typical REPL request (vs ~5ms)
+- **Concurrent pages**: 10,000+ simultaneous connections (vs ~100 practical limit)
+- **Background events**: 1,000,000 events/second capture rate (vs ~1,000)
+- **Binary size**: < 5MB single-file executable (vs ~50MB node_modules)
+- **Memory footprint**: < 10MB baseline (vs ~50MB Node.js runtime)
+- **Test orchestration**: 10,000 tests/second dispatch rate (vs ~100)
 
-2) Core components
-   - File manager: safe read/write, temp-file replace, per-instance lock manager.
-   - Parser/validator: implement the `docs/1-jsrepl.md` parsing rules to detect agent requests, fenced blocks, footer management and background serialization rules.
-   - Job manager: in-memory state, timeouts, retries, and lifecycle transitions.
+## Distribution Strategy
 
-3) HTTP routes
-   - Implement endpoints listed above with JSON schemas and openapi-style docs (optional).
+**Phase 1: Drop-In Replacement**
+- Preserve exact CLI interface: `npx daebug` works identically
+- WASM core with Node.js file system adapter
+- Zero breaking changes to user workflows
+- Benchmark demonstrates 10x performance improvement
 
-4) Security hardening
-   - Input sanitization, filename sanitization, optional API key middleware, local-only defaults.
+**Phase 2: Native Binary Option**
+- Release standalone executables for major platforms
+- Users choose: npm package (familiar) or native binary (fastest)
+- Document migration path from JS to native
+- Maintain feature parity across both distributions
 
-5) Tests
-   - Unit tests for parser and file manager.
-   - Integration tests with a small Node shim (the shim will be used only during tests and demos).
+**Phase 3: Browser-Native Deployment**
+- Chrome/Firefox extension or DevTools plugin
+- Pure WASM, no external server required
+- File System Access API for storing REPL logs
+- Enable debugging production sites without SSH access
 
-6) Documentation and examples
-   - Write quickstart README showing how to run the Rust server and how to use the `browser-shim.js` and `node-shim.js` (the shims are JS clients that execute code and test workflows).
+**Phase 4: Universal Platform Support**
+- Embedded systems (ARM Cortex-M, RISC-V)
+- Edge computing (Cloudflare Workers, Fastly Compute@Edge)
+- Mobile platforms (Android, iOS via FFI)
+- Kernel modules (Linux, Windows drivers)
 
-Developer ergonomics & ops
+## Why This Matters
 
-- Provide clear logging for write failures and recovery attempts.
-- Provide a dry-run mode that validates incoming appends and prints the actions without mutating files.
-- Provide a `--data-dir` option to allow running the server against a specific repository copy.
+Current debugging tools force developers into vendor-specific ecosystems: Chrome DevTools for browser, gdb for native, language-specific REPLs for server. Each has different UX, different capabilities, different limitations.
 
-Edge cases & risks
+👾Daebug in Rust becomes the **universal debugging substrate**: one REPL protocol, one file format, one workflow across every execution environment. The file-based Markdown conversation becomes the Rosetta Stone of debugging—intelligible to humans, LLMs, and automated tooling alike.
 
-- Clients may post malformed results or fail to follow expected jobId semantics; server must defensively validate and append diagnostics rather than overwriting.
-- Cross-platform atomic replace semantics differ; test carefully on Windows and POSIX.
-- Long-running background buffers may cause memory bloat; cap per-instance retained events (per the compression rules) and persist when necessary.
-- CSP and worker-src may prevent the browser from creating workers; the server should accept graceful degradation and write diagnostic entries when worker creation fails.
+LLMs trained on code can already read and write Markdown fluently. Give them a REPL that speaks Markdown, compiles to WASM, and runs anywhere, and you've built the foundation for autonomous software maintenance at planetary scale.
 
-Conclusion
+**Vision**: Every software system—web apps, IoT devices, blockchain contracts, operating system kernels, GPU shaders—exposes a 👾Daebug REPL. Every developer (human or AI) interacts through the same file-based protocol. Debugging transcends language and platform boundaries. The Rust implementation makes this vision achievable.
 
-Using Rust as the orchestration and HTTP server (while leaving JS execution to the clients) gives the project a stable, auditable, and robust server-side implementation. The server is the authoritative manager of per-instance files, job lifecycle, worker registration, heartbeats, and test-run coordination, while the client-side shims remain responsible for executing code and returning structured results.
+## Technical Foundation
 
-Next steps
+**Core Crates**:
+- `tokio` or `async-std`: Async runtime for high-concurrency I/O
+- `axum` or `actix-web`: HTTP server with WebSocket support
+- `notify` or custom `inotify`/`FSEvents` wrapper: File watching
+- `nom` or `winnow`: Zero-copy Markdown parsing
+- `serde`: Serialization for registry persistence and protocol messages
+- `tracing`: Structured logging for observability
+- `wasm-bindgen`: WASM interop for browser deployment
+- `napi-rs`: Node.js native module for hybrid npm distribution
 
-- I can implement the `daebug-server` crate skeleton and the file-manager + parser in Rust and add unit tests for the parsing/atomic-write behaviour. Then I'll add minimal Node-based integration tests that exercise the HTTP routes end-to-end. If you want me to start that, tell me to proceed and I will create the crate and initial files.
+**Build Targets**:
+- Native: `x86_64-unknown-linux-gnu`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc`
+- WASM: `wasm32-unknown-unknown` for browser, `wasm32-wasi` for Node.js
+- Embedded: `thumbv7em-none-eabihf` (ARM Cortex-M4), `riscv32imac-unknown-none-elf`
+
+**Protocol Versioning**:
+Rust implementation must maintain backward compatibility with existing `daebug/*.md` files. Protocol versioning in file headers enables graceful evolution. Legacy JS files remain readable by Rust parser; Rust-enhanced features degrade gracefully on JS fallback.
+
+## Migration Philosophy
+
+**Not a rewrite—an evolution**:
+The JavaScript implementation is not deprecated. It remains the reference specification and the baseline for validation. Rust adds performance, safety, and portability. Users choose based on their needs:
+
+- **JS version**: Rapid prototyping, educational use, maximum compatibility
+- **Rust WASM**: Production debugging, high-concurrency scenarios, npm distribution
+- **Rust native**: CI/CD pipelines, embedded systems, maximum performance
+
+Both implementations share the same file format, the same protocol semantics, the same user-facing behavior. Tests validate parity. Documentation covers both paths.
+
+## Success Criteria
+
+The Rust implementation succeeds when:
+
+1. **Drop-in compatibility**: `npm install daebug@rust` upgrades smoothly; all existing workflows continue working
+2. **Performance leadership**: Demonstrable 10x improvement in file watching, parsing, and job dispatch
+3. **Universal deployment**: Runs on Linux, macOS, Windows, WASM, ARM, RISC-V without platform-specific code paths
+4. **Feature completeness**: Every JS feature preserved plus Rust-exclusive capabilities
+5. **Safety validation**: Zero memory corruption, zero data races, zero file system corruption under stress testing
+6. **Community adoption**: Developers choose Rust version for performance; enterprises choose it for reliability
+7. **Ecosystem growth**: Third-party plugins, protocol extensions, platform integrations emerge
+
+## Call to Action
+
+This is not a plan—it's a **vision**. The JavaScript implementation proves the concept. Rust makes it **real**: production-ready, globally scalable, universally deployable.
+
+Every feature described here is achievable with existing Rust crates and WASM tooling. No research required. No novel algorithms. Just disciplined engineering, leveraging Rust's strengths:
+
+- **Memory safety** eliminates debugging the debugger
+- **Fearless concurrency** enables planetary-scale orchestration
+- **Zero-cost abstractions** deliver native performance without sacrificing expressiveness
+- **WASM compilation** unlocks browser-native deployment
+
+The future of debugging is file-based, LLM-native, and **built in Rust**.
+
+**Next**: Someone builds it.

@@ -3,3 +3,11 @@
 /daebug/
 .DS_Store
 /.playwright-mcp/
+
+# Rust
+/target/
+Cargo.lock
+*.wasm
+*.so
+*.dylib
+*.dll

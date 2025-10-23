@@ -38,11 +38,138 @@ High-level goals
 
 ## Why Rust with WASM distribution
 
-- **Robust IO**: Rust's async ecosystems (tokio, async-std) provide reliable file-system operations and high-concurrency HTTP servers (hyper, axum)
+- **Robust IO**: Rust's async ecosystems (tokio, async-sd) provide reliable file-system operations and high-concurrency HTTP servers (hyper, axum)
 - **Memory safety**: Explicit error handling reduces crashes that could corrupt per-instance files
 - **Universal distribution**: WASM compilation enables npm distribution without platform-specific native modules
 - **Performance**: Native code performance for file watching, parsing, and HTTP serving
 - **Cross-platform consistency**: Same binary logic on Linux, macOS, Windows via WASM
+
+## Markdown Parsing in Rust
+
+Fast and precise Markdown parsing is critical to 👾Daebug's performance. The server must parse REPL logs continuously to detect new requests, extract code blocks, locate footers, and format replies. Rust provides multiple high-quality Markdown parsing libraries and patterns that can significantly outperform JavaScript regex-based approaches.
+
+### Parsing Requirements
+
+The REPL protocol requires parsing:
+
+1. **Agent request headers** - Both old blockquote format (`> **agent** to page`) and new heading format (`### 🗣️agent to page`)
+2. **Fenced code blocks** - Triple-backtick delimited with optional language tags
+3. **Footer markers** - Canonical footer line marking the append point
+4. **Reply headers** - Page responses with timestamps and duration
+5. **Background event blocks** - Console output and error stacks with fence metadata
+6. **Hierarchical structure** - Level 1-5 headings for outline navigation (per `docs/1.5.2-repl-tidy.md`)
+
+### Rust Markdown Libraries
+
+**pulldown-cmark** (Recommended)
+- Most popular Rust Markdown parser, implements CommonMark spec
+- Event-driven streaming parser - processes files incrementally without loading entire AST
+- Zero-copy string slices reduce allocations
+- Supports extensions: tables, strikethrough, task lists, footnotes
+- Actively maintained, used by mdBook and rustdoc
+- Example: Parse a file and iterate over events (heading, code block, text) in a single pass
+
+```rust
+use pulldown_cmark::{Parser, Event, Tag, CodeBlockKind};
+
+let markdown = std::fs::read_to_string("daebug/page.md")?;
+let parser = Parser::new(&markdown);
+
+for event in parser {
+    match event {
+        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang))) => {
+            // Found fenced code block with language tag
+        }
+        Event::Start(Tag::Heading(level, _, _)) => {
+            // Found heading at specified level
+        }
+        // ... handle other events
+    }
+}
+```
+
+**comrak**
+- Alternative CommonMark parser with focus on correctness
+- Similar event-driven API to pulldown-cmark
+- Slightly different extension support
+- Good choice if spec compliance is paramount
+
+**markdown-rs**
+- Newer parser, compiles to WASM natively
+- Implements full CommonMark + GFM (GitHub Flavored Markdown)
+- May have better WASM performance characteristics
+
+**Custom parsing with nom**
+- For specialized parsing needs (like extracting just the footer), can use `nom` parser combinator library
+- Build custom zero-copy parsers for specific REPL grammar elements
+- Useful for targeted extraction without full Markdown parsing overhead
+
+### Parsing Strategy
+
+**Phase 1: Tail scanning for new requests**
+When file changes detected, only parse the tail region (from footer to end of file):
+1. Read file into string
+2. Find footer line using simple string search (faster than regex)
+3. Extract tail content below footer
+4. Parse tail with pulldown-cmark to identify agent header + code blocks
+5. If valid request found, proceed to Phase 2
+
+**Phase 2: Full file parsing for job acceptance**
+When accepting a request, parse entire file to:
+1. Locate executing blocks for active jobs
+2. Find reply insertion points
+3. Validate file structure integrity
+4. Generate updated content with injected headers
+
+**Phase 3: Incremental updates during execution**
+While job runs, efficiently update the executing region:
+1. Parse from last known header position (cached)
+2. Swap background text without reparsing entire file
+3. Update placeholder line in-place
+
+### Performance Advantages
+
+**String slices vs. allocations**
+JavaScript regex parsing allocates new strings for every match. Rust's pulldown-cmark uses `&str` slices that reference the original file buffer, eliminating allocations.
+
+**Event streaming vs. AST building**
+JavaScript Markdown libraries often build full Abstract Syntax Trees. pulldown-cmark streams events, processing each element as encountered without holding the entire structure in memory.
+
+**SIMD-accelerated string search**
+Rust's standard library and libraries like `memchr` use SIMD instructions for finding patterns (like fence delimiters `~~~`) in large buffers, orders of magnitude faster than character-by-character scanning.
+
+**Compiled parsers**
+While JavaScript interprets regex at runtime, Rust parsers compile to native code. Combined with WASM, this provides near-native parsing performance even in Node.js.
+
+### Error Recovery
+
+Rust's Result types enable robust error handling during parsing:
+- Malformed Markdown doesn't crash the server
+- Partial parses can be recovered and diagnostics written to logs
+- Type safety ensures invalid states are unrepresentable
+
+Example error handling:
+```rust
+fn parse_request(content: &str) -> Result<Request, ParseError> {
+    let parser = Parser::new(content);
+    // ... parsing logic
+    Ok(request)
+}
+
+match parse_request(&file_content) {
+    Ok(req) => process_request(req),
+    Err(e) => write_diagnostic(&format!("Parse error: {}", e))
+}
+```
+
+### Implementation Notes
+
+The Rust parser will:
+- Use pulldown-cmark for full CommonMark compatibility
+- Implement zero-copy parsing for tail scanning (most common operation)
+- Cache parse state between file watches to avoid redundant work
+- Provide compatibility layer matching JavaScript parser's behavior for protocol compliance
+- Support both old (blockquote) and new (heading) formats during transition period
 
 Core responsibilities for the Rust server
 
@@ -172,7 +299,7 @@ Implementation roadmap
 
 2) Core components
    - File manager: safe read/write, temp-file replace, per-instance lock manager.
-   - Parser: implement the `docs/1-jsrepl.md` parsing rules to detect agent requests, fenced blocks, footer management and background serialization rules. Support rich Markdown structure from `docs/1.5.2-repl-tidy.md`.
+   - Parser: use `pulldown-cmark` for event-driven Markdown parsing. Implement the `docs/1-jsrepl.md` parsing rules to detect agent requests, fenced blocks, footer management and background serialization rules. Support rich Markdown structure from `docs/1.5.2-repl-tidy.md`. Optimize tail scanning for new request detection.
    - Job manager: in-memory state, timeouts, retries, and lifecycle transitions.
 
 3) HTTP routes
@@ -197,6 +324,7 @@ Technical foundation
 **Core Crates**:
 - `tokio`: Async runtime for high-concurrency I/O
 - `axum`: HTTP server framework
+- `pulldown-cmark`: Fast, CommonMark-compliant Markdown parser with event streaming
 - `notify`: File watching (or platform-specific inotify/FSEvents)
 - `serde`: Serialization for registry persistence and protocol messages
 - `wasm-bindgen`: WASM interop for Node.js deployment

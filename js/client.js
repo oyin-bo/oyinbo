@@ -36,6 +36,7 @@ export async function clientMainFunction(overrides, testExport) {
   const MAX_RESTART_ATTEMPTS = 5;
   const WORKER_HEALTH_CHECK_INTERVAL = 10000;
   const WORKER_TIMEOUT = 20000;
+  let endpoint = '';
 
   /**
    * @type {{
@@ -331,7 +332,7 @@ export async function clientMainFunction(overrides, testExport) {
     addEventListener('error', handleErrorEvent);
     addEventListener('unhandledrejection', handlePromiseRejectionEvent);  
 
-    const endpoint = '/daebug?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(location.href);
+    endpoint = '/daebug?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(location.href);
 
     worker = createWorker();
     if (worker) {

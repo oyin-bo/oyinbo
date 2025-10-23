@@ -291,7 +291,12 @@ export function formatResultBlocks(result) {
  * @returns {string}
  */
 export function formatFooter() {
-  return `----------------------------------------------------------------------\n> Write code in a fenced JS block below to execute against this page.\n`;
+  return (
+    `----------------------------------------------------------------------
+> Write code in a fenced JS block below to execute against this page.
+
+
+`);
 }
 
 /**

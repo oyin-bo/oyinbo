@@ -44,8 +44,11 @@ export function start(root, port) {
     // Daebug modules (test-runner.js, assert.js)
     if (url.pathname in DAEBUG_MODULES) {
       console.log(`👾serving module: ${url.pathname}`);
-      return res.writeHead(200, { 'Content-Type': MIME['.js'] })
-        .end(DAEBUG_MODULES[url.pathname]);
+      return res.writeHead(200, { 
+        'Content-Type': MIME['.js'],
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache'
+      }).end(DAEBUG_MODULES[url.pathname]);
     }
     
     // Test discovery endpoint
@@ -311,6 +314,132 @@ function handleResult(url, req, res) {
 }
 
 /**
+ * Convert glob pattern to regex
+ * Supports:
+ *   - * matches any chars except /
+ *   - ** matches zero or more path segments (directories)
+ *   - . and other regex chars are escaped
+ * @param {string} pattern
+ * @returns {RegExp}
+ */
+export function patternToRegex(pattern) {
+  // Normalize path separators to forward slash
+  const normalized = pattern.split(sep).join('/');
+  
+  // Split by / to process each segment
+  const segments = normalized.split('/').filter(s => s !== '');
+  const regexParts = [];
+  
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    
+    if (segment === '**') {
+      // ** matches zero or more path segments
+      if (i === 0 && i === segments.length - 1) {
+        // Pattern is just "**" - matches everything
+        regexParts.push('.*');
+      } else if (i === 0) {
+        // At start: matches zero or more segments before the rest
+        // Pattern: **/.../... should match .../... or x/.../... or x/y/.../...
+        regexParts.push('(?:(?:[^/]+/)*)');
+      } else if (i === segments.length - 1) {
+        // At end: matches zero or more segments after prefix
+        // Pattern: .../** adds optional trailing path
+        regexParts.push('(?:.*)?');
+      } else {
+        // In middle: matches zero or more segments between parts
+        regexParts.push('(?:(?:[^/]+/)*)');
+      }
+    } else {
+      // Regular segment - may contain * wildcard
+      let segmentRegex = '';
+      for (let j = 0; j < segment.length; j++) {
+        const char = segment[j];
+        if (char === '*') {
+          segmentRegex += '[^/]*';
+        } else {
+          // Escape regex special chars
+          segmentRegex += char.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+        }
+      }
+      regexParts.push(segmentRegex);
+    }
+  }
+  
+  if (regexParts.length === 0) {
+    // Empty pattern matches everything
+    return new RegExp('^.*$');
+  }
+  
+  // Join parts with separators, being careful about ** handling
+  let regexStr = '';
+  for (let i = 0; i < regexParts.length; i++) {
+    const part = regexParts[i];
+    
+    if (i > 0) {
+      const prevPart = regexParts[i - 1];
+      // Don't add / if previous part is ** pattern that includes trailing slashes
+      // ** patterns: (?:(?:[^/]+/)*) or (?:.*)?
+      const prevIsDoubleStar = prevPart.includes('(?:[^/]+/)*)') || prevPart === '(?:.*)?';
+      const currentIsDoubleStar = part.includes('(?:[^/]+/)*)') || part === '(?:.*)?' || part === '.*';
+      
+      // Add separator only if previous is not **, or if both are ** (need separator between them)
+      if (!prevIsDoubleStar) {
+        regexStr += '/';
+      }
+    }
+    
+    regexStr += part;
+  }
+  
+  return new RegExp('^' + regexStr + '$');
+}
+
+/**
+ * Glob pattern matching - recursively find files matching patterns
+ * Returns absolute file paths
+ * @param {string} dir - root directory to search from
+ * @param {string[]} patterns - glob patterns
+ * @param {string[]} exclude - exclusion patterns
+ * @returns {string[]} - absolute file paths
+ */
+export function glob(dir, patterns, exclude) {
+  const results = new Set();
+  const patternRegexes = patterns.map(p => patternToRegex(p));
+  const excludeRegexes = exclude.map(e => patternToRegex(e));
+  
+  function scan(/** @type {string} */ currentDir) {
+    try {
+      const entries = readdirSync(currentDir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = join(currentDir, entry.name);
+        const relPath = relative(dir, fullPath).split(sep).join('/');
+        
+        // Skip excluded paths
+        if (excludeRegexes.some(regex => regex.test(relPath))) {
+          continue;
+        }
+        
+        if (entry.isDirectory()) {
+          scan(fullPath);
+        } else if (entry.isFile()) {
+          // Match against patterns - file must match at least one pattern
+          if (patternRegexes.some(regex => regex.test(relPath))) {
+            results.add(fullPath);
+          }
+        }
+      }
+    } catch (err) {
+      // Ignore permission errors etc.
+    }
+  }
+  
+  scan(dir);
+  return Array.from(results).sort();
+}
+
+/**
  * Discover test files matching patterns
  * @param {string} root
  * @param {import('http').IncomingMessage} req
@@ -398,104 +527,14 @@ function discoverTestFiles(root, cwd, patterns, exclude) {
     return [];
   }
   
-  const discovered = new Set();
+  // Use the glob function directly
+  const discovered = glob(cwdAbs, patterns, exclude);
   
-  for (const pattern of patterns) {
-    const files = findTestFiles(cwdAbs, pattern, exclude);
-    for (const file of files) {
-      const abs = resolve(file);
-      // Security: validate file is within root
-      if (abs.startsWith(rootAbs)) {
-        discovered.add(abs);
-      }
-    }
-  }
-  
-  return Array.from(discovered).sort();
-}
-
-/**
- * Find test files matching a pattern
- * @param {string} dir - directory to search
- * @param {string} pattern - pattern like "**\/*.test.js" or "./tests/foo.test.js"
- * @param {string[]} exclude - exclusion patterns
- * @returns {string[]} - absolute file paths
- */
-function findTestFiles(dir, pattern, exclude) {
-  const results = [];
-  
-  // If pattern is an explicit file path, return it directly
-  if (pattern.includes('.test.js') && !pattern.includes('*')) {
-    const explicit = resolve(dir, pattern);
-    if (existsSync(explicit) && isTestFile(explicit)) {
-      return [explicit];
-    }
-    return [];
-  }
-  
-  // Otherwise do recursive search for test files
-  function scan(/** @type {string} */ currentDir) {
-    try {
-      const entries = readdirSync(currentDir, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        const fullPath = join(currentDir, entry.name);
-        const relPath = relative(dir, fullPath);
-        
-        // Check exclusions
-        if (exclude.some(ex => matchPattern(relPath, ex))) {
-          continue;
-        }
-        
-        if (entry.isDirectory()) {
-          scan(fullPath);
-        } else if (entry.isFile() && isTestFile(entry.name)) {
-          // Match test file patterns
-          if (pattern === '**/*.test.js' || pattern.includes('**/*')) {
-            results.push(fullPath);
-          } else if (matchPattern(relPath, pattern)) {
-            results.push(fullPath);
-          }
-        }
-      }
-    } catch (err) {
-      // Ignore permission errors etc.
-    }
-  }
-  
-  scan(dir);
-  return results;
-}
-
-/**
- * Check if filename matches test file conventions
- * @param {string} filename
- * @returns {boolean}
- */
-function isTestFile(filename) {
-  return filename.endsWith('.test.js') || 
-         filename.endsWith('.test.mjs') || 
-         filename.endsWith('.test.cjs') ||
-         filename.startsWith('test-') && (filename.endsWith('.js') || filename.endsWith('.mjs'));
-}
-
-/**
- * Simple pattern matching (supports * and **)
- * @param {string} path
- * @param {string} pattern
- * @returns {boolean}
- */
-function matchPattern(path, pattern) {
-  // Convert pattern to regex
-  const regexStr = pattern
-    .split('/').map(part => {
-      if (part === '**') return '.*';
-      if (part === '*') return '[^/]*';
-      return part.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*');
-    }).join('/');
-  
-  const regex = new RegExp('^' + regexStr + '$');
-  return regex.test(path.split(sep).join('/'));
+  // Filter to ensure all files are within root (security)
+  return discovered.filter(file => {
+    const abs = resolve(file);
+    return abs.startsWith(rootAbs);
+  }).sort();
 }
 
 /**

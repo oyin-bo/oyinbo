@@ -129,6 +129,7 @@ export const it = test;
  */
 export async function daebugRunTests(options) {
   const files = options.files || [];
+  // console.log(`   𒀸  daebugRunTests called with files:`, files);
   const streamProgress = options.streamProgress;
   const realmId = getRealmId();
   const reg = getTestRegistry(realmId);
@@ -149,10 +150,8 @@ export async function daebugRunTests(options) {
     for (const file of files) {
       try {
         // Resolve file path for import
-        // Remove leading slash if present - import paths should be relative to server root
-        let resolvedFile = file.replace(/^\//, '');
-        // Ensure no ./ prefix for import
-        resolvedFile = resolvedFile.replace(/^\.\//, '');
+        // Ensure leading slash for absolute path imports
+        let resolvedFile = file.startsWith('/') ? file : '/' + file;
         // Add cache-busting query parameter to force re-import on each test run
         resolvedFile += `?t=${Date.now()}`;
         await import(resolvedFile);
@@ -315,21 +314,38 @@ export async function run(options = {}) {
     
     // If we have patterns, discover files from server
     if (patterns.length > 0 && typeof fetch !== 'undefined') {
-      const response = await fetch('/daebug/discover-tests', { // TODO: covert to root-relative, avoid nested directories
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: patterns })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Test discovery failed: ${response.status}`);
+      // console.log(`   𒀸  discovering ${patterns.length} patterns...`);
+      // console.log(`   𒀸  about to fetch...`);
+      try {
+        // console.log(`   𒀸  inside try block`);
+        const response = await fetch('/daebug/discover-tests', { // TODO: covert to root-relative, avoid nested directories
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: patterns })
+        });
+        
+        // console.log(`   𒀸  fetch response status: ${response.status}`);
+        
+        if (!response.ok) {
+          throw new Error(`Test discovery failed: ${response.status}`);
+        }
+        
+        const text = await response.text();
+        // console.log(`   𒀸  response text:`, text);
+        const data = JSON.parse(text);
+        // console.log(`   𒀸  parsed data:`, data);
+        testFiles = data.files || [];
+        
+        // console.log(`   𒀸  discovered ${testFiles.length} test files:`, testFiles);
+      } catch (err) {
+        console.error(`   𒀸  discovery error:`, err);
+        // On error, patterns will remain undiscovered and cause import errors
       }
-      
-      const data = await response.json();
-      testFiles = data.files || [];
-      
-      console.log(`   𒀸  discovered ${testFiles.length} test files`);
+    } else {
+      // console.log(`   𒀸  skipping discovery: patterns=${patterns.length}, fetch=${typeof fetch}`);
     }
+    
+    // console.log(`   𒀸  after discovery block, testFiles:`, testFiles);
     
     // Add explicit files
     testFiles = [...testFiles, ...explicitFiles];
@@ -400,7 +416,8 @@ export async function run(options = {}) {
     };
     
     // Run tests with daebugRunTests and pass streaming handler
-    const results = await daebugRunTests({ files: testFiles, streamProgress, ...options });
+    // console.log(`   𒀸  calling daebugRunTests with files:`, testFiles);
+    const results = await daebugRunTests({ ...options, files: testFiles, streamProgress });
     
     // Stream final results - include ALL tests, not just recent
     await streamProgress({

@@ -71,6 +71,22 @@ pub async fn post_result(endpoint: String, job_id: String, result: JsValue) -> R
     Ok(())
 }
 
+/// Handle worker messages (Worker context only)
+#[wasm_bindgen]
+pub fn handle_worker_message(message_json: String) -> Result<(), JsValue> {
+    if get_runtime_context() != RuntimeContext::Worker {
+        return Err(JsValue::from_str("handle_worker_message can only be called in Worker context"));
+    }
+    
+    #[cfg(target_family = "wasm")]
+    {
+        web_sys::console::log_1(&format!("Worker received message: {}", message_json).into());
+    }
+    
+    // Stub: Will implement actual message handling
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

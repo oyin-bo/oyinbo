@@ -7,17 +7,21 @@
 //
 // A small JS bootstrap disambiguates by passing a runtime flag.
 
+#[cfg(feature = "native")]
 pub mod server;
+#[cfg(feature = "native")]
+pub mod watcher;
+
 pub mod parser;
 pub mod registry;
 pub mod job;
-pub mod watcher;
 pub mod writer;
 pub mod runtime;
 
 #[cfg(target_family = "wasm")]
 pub mod wasm;
 
+#[cfg(feature = "native")]
 pub use server::Server;
 pub use parser::parse_request;
 pub use registry::Registry;

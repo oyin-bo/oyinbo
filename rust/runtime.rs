@@ -1,9 +1,9 @@
 // Runtime context disambiguation for WASM module
 //
 // The same WASM binary runs in three contexts:
-// - Node.js: Full server orchestration
-// - Page: Browser REPL client
-// - Worker: Isolated worker REPL
+// - Node.js: Full server orchestration (0)
+// - Page: Browser REPL client (1)
+// - Worker: Isolated worker REPL (2)
 
 use wasm_bindgen::prelude::*;
 
@@ -17,12 +17,13 @@ pub enum RuntimeContext {
 static mut RUNTIME_CONTEXT: Option<RuntimeContext> = None;
 
 /// Initialize the runtime context (called by JS bootstrap)
+/// @param context: 0=node, 1=page, 2=worker
 #[wasm_bindgen]
-pub fn init_runtime(context: &str) -> Result<(), JsValue> {
+pub fn init_runtime(context: u32) -> Result<(), JsValue> {
     let ctx = match context {
-        "node" => RuntimeContext::Node,
-        "page" => RuntimeContext::Page,
-        "worker" => RuntimeContext::Worker,
+        0 => RuntimeContext::Node,
+        1 => RuntimeContext::Page,
+        2 => RuntimeContext::Worker,
         _ => return Err(JsValue::from_str(&format!("Unknown runtime context: {}", context))),
     };
     

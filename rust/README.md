@@ -35,33 +35,20 @@ The WASM code checks the runtime context and enables only the appropriate functi
 ### Prerequisites
 
 ```bash
-# Install wasm-pack
-curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-# Or with cargo
-cargo install wasm-pack
+# Install WASM target
+rustup target add wasm32-unknown-unknown
 ```
 
-### Build for Node.js (WASI target)
+### Build Unified WASM Module
 
 ```bash
-# Build WASM module for Node.js
-cargo build --target wasm32-wasi --release
+# Build single WASM module for all three contexts
+make build-wasm
 
-# The WASM binary will be in target/wasm32-wasi/release/daebug.wasm
+# The WASM binary will be in rust/daebug.wasm (411KB)
 ```
 
-### Build for Browser (web target)
-
-```bash
-# Build WASM module for browser
-wasm-pack build --target web --out-dir js/pkg
-
-# This generates:
-# - js/pkg/daebug.js (JS bindings)
-# - js/pkg/daebug_bg.wasm (WASM binary)
-# - js/pkg/daebug.d.ts (TypeScript definitions)
-```
+This creates a single `daebug.wasm` file that works in Node.js, browser pages, and web workers.
 
 ### Development
 
@@ -81,35 +68,31 @@ wasm-pack test --node
 ### Node.js Server
 
 ```javascript
-import { startServer } from './js/wasm-node.js';
+import { init } from './rust/wasm-node.js';
 
-// Start server on port 8342
-await startServer('.', 8342);
+// Initialize and start server
+const wasm = await init();
+await wasm.start_server('.', 8342);
 ```
 
 ### Browser Page
 
 ```javascript
-import { startPageClient } from './js/wasm-page.js';
+import { init } from './rust/wasm-page.js';
 
 // Initialize page client
-const client = await startPageClient('http://localhost:8342/daebug', 'my-page');
+const wasm = await init();
+// All logic runs in WASM
 ```
 
 ### Web Worker
 
 ```javascript
-// Create worker
-const worker = new Worker('./js/wasm-worker.js', { type: 'module' });
+// Load worker
+const worker = new Worker('./rust/wasm-worker.js', { type: 'module' });
 
-// Send initialization
-worker.postMessage({ type: 'init' });
-
-// Execute code
-worker.postMessage({ 
-  type: 'execute', 
-  data: { code: 'console.log("Hello from worker")' }
-});
+// Worker automatically initializes and handles messages in WASM
+worker.postMessage({ type: 'execute', code: 'console.log("test")' });
 ```
 
 ## Current Status

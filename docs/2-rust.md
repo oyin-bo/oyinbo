@@ -2,13 +2,13 @@
 
 Purpose
 
-This document describes the vision for a Rust implementation of 👾Daebug, compiled to WebAssembly and distributed via npm as a drop-in replacement for the current JavaScript version. The Rust implementation serves as the orchestration layer and HTTP server for the file-based Markdown REPL (see `docs/1-jsrepl.md`), while JavaScript execution continues in host runtimes (browser main thread, web workers, Node). Rust provides reliable server-side behaviour, deterministic file handling, and strong concurrency/IO guarantees, distributed universally via WASM.
+This document describes the vision for a Rust implementation of 👾Daebug, compiled to WebAssembly and distributed via npm. The Rust implementation serves as the orchestration layer and HTTP server for the file-based Markdown REPL (see `docs/1-jsrepl.md`), while JavaScript execution continues in host runtimes (browser main thread, web workers, Node). Rust provides reliable server-side behaviour, deterministic file handling, and strong concurrency/IO guarantees, distributed universally via WASM.
 
 ## Evolution Since Original Vision
 
 The current JavaScript implementation has matured significantly:
 
-**Implemented Features** (must be preserved in Rust):
+**Implemented Features** (to preserve in Rust):
 - **npx distribution**: Global CLI tool (`npx daebug`) with intelligent port derivation
 - **Background event capture**: Real-time console logs, errors, and promise rejections with streaming
 - **Test runner**: `--test` flag for running browser-based test suites with progress updates
@@ -25,8 +25,7 @@ The current JavaScript implementation has matured significantly:
 The Rust implementation will be distributed as an npm package with WASM orchestration engine:
 - Core logic compiled to WASM, runs in Node.js runtime
 - Thin Node.js wrapper for file system access
-- `npx daebug` works identically to current JS version
-- Seamless upgrade path: same CLI, same files, faster execution
+- `npx daebug` works with the same CLI interface
 - Installable on any platform supporting Node 18+
 
 High-level goals
@@ -44,144 +43,73 @@ High-level goals
 - **Performance**: Native code performance for file watching, parsing, and HTTP serving
 - **Cross-platform consistency**: Same binary logic on Linux, macOS, Windows via WASM
 
-## Markdown Parsing in Rust
+## Precise Markdown Parsing with markdown-rs
 
-Fast and precise Markdown parsing is critical to 👾Daebug's performance. The server must parse REPL logs continuously to detect new requests, extract code blocks, locate footers, and format replies. Rust provides multiple high-quality Markdown parsing libraries and patterns that can significantly outperform JavaScript regex-based approaches.
+Markdown parsing is the power move for the Rust implementation. Using **markdown-rs**, the server will parse REPL logs with full precision, building complete AST representations that enable intelligent diff-based reactions and in-place editing.
 
-### Parsing Requirements
+### markdown-rs Integration
+
+**markdown-rs** is chosen for its:
+- Full CommonMark + GFM (GitHub Flavored Markdown) implementation
+- Native WASM compilation optimized for Node.js runtime
+- Complete AST generation for structural analysis
+- Precise source position tracking for all elements
 
 The REPL protocol requires parsing:
 
-1. **Agent request headers** - Both old blockquote format (`> **agent** to page`) and new heading format (`### 🗣️agent to page`)
-2. **Fenced code blocks** - Triple-backtick delimited with optional language tags
+1. **Agent request headers** - Both blockquote format (`> **agent** to page`) and heading format (`### 🗣️agent to page`)
+2. **Fenced code blocks** - Triple-backtick delimited with language tags
 3. **Footer markers** - Canonical footer line marking the append point
 4. **Reply headers** - Page responses with timestamps and duration
 5. **Background event blocks** - Console output and error stacks with fence metadata
 6. **Hierarchical structure** - Level 1-5 headings for outline navigation (per `docs/1.5.2-repl-tidy.md`)
 
-### Rust Markdown Libraries
+### Full-File Parsing and Diff-Based Reaction
 
-**pulldown-cmark** (Recommended)
-- Most popular Rust Markdown parser, implements CommonMark spec
-- Event-driven streaming parser - processes files incrementally without loading entire AST
-- Zero-copy string slices reduce allocations
-- Supports extensions: tables, strikethrough, task lists, footnotes
-- Actively maintained, used by mdBook and rustdoc
-- Example: Parse a file and iterate over events (heading, code block, text) in a single pass
+The server will **reparse the entire file on every change**, then identify differing parts and react accordingly. This approach handles edge cases where LLMs insert chunks in incorrect file locations.
 
-```rust
-use pulldown_cmark::{Parser, Event, Tag, CodeBlockKind};
+**Parse → Diff → React workflow:**
 
-let markdown = std::fs::read_to_string("daebug/page.md")?;
-let parser = Parser::new(&markdown);
+1. **Parse**: Read entire file and build complete Markdown AST with markdown-rs
+2. **Diff**: Compare new AST with previous parse to identify changes
+3. **React**: Based on what changed (new code block, modified header, etc.), dispatch appropriate action
 
-for event in parser {
-    match event {
-        Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang))) => {
-            // Found fenced code block with language tag
-        }
-        Event::Start(Tag::Heading(level, _, _)) => {
-            // Found heading at specified level
-        }
-        // ... handle other events
-    }
-}
-```
+This is more robust than offset-based approaches because:
+- LLMs may insert code blocks in unexpected locations (above footer, between existing sections)
+- Structural understanding allows detecting misplaced content and responding elastically
+- No assumptions about where changes occur; the diff reveals actual edits
 
-**comrak**
-- Alternative CommonMark parser with focus on correctness
-- Similar event-driven API to pulldown-cmark
-- Slightly different extension support
-- Good choice if spec compliance is paramount
+### In-Place Editing for Test Runner
 
-**markdown-rs**
-- Newer parser, compiles to WASM natively
-- Implements full CommonMark + GFM (GitHub Flavored Markdown)
-- May have better WASM performance characteristics
+Unit test output is another area where precise Markdown parsing excels. Rather than appending new test results, the test runner output formatter will **update progress in-place** within the relevant section of the file.
 
-**Custom parsing with nom**
-- For specialized parsing needs (like extracting just the footer), can use `nom` parser combinator library
-- Build custom zero-copy parsers for specific REPL grammar elements
-- Useful for targeted extraction without full Markdown parsing overhead
+Using markdown-rs:
+1. Parse file to locate the test results section (specific heading level or marker)
+2. Build updated test output content
+3. Replace just that section while preserving the rest of the file structure
+4. Re-serialize modified AST back to Markdown
 
-### Parsing Strategy
+This prevents test logs from growing unbounded and keeps the REPL log focused on current state rather than historical accumulation.
 
-**Phase 1: Tail scanning for new requests**
-When file changes detected, only parse the tail region (from footer to end of file):
-1. Read file into string
-2. Find footer line using simple string search (faster than regex)
-3. Extract tail content below footer
-4. Parse tail with pulldown-cmark to identify agent header + code blocks
-5. If valid request found, proceed to Phase 2
+### Error Handling
 
-**Phase 2: Full file parsing for job acceptance**
-When accepting a request, parse entire file to:
-1. Locate executing blocks for active jobs
-2. Find reply insertion points
-3. Validate file structure integrity
-4. Generate updated content with injected headers
-
-**Phase 3: Incremental updates during execution**
-While job runs, efficiently update the executing region:
-1. Parse from last known header position (cached)
-2. Swap background text without reparsing entire file
-3. Update placeholder line in-place
-
-### Performance Advantages
-
-**String slices vs. allocations**
-JavaScript regex parsing allocates new strings for every match. Rust's pulldown-cmark uses `&str` slices that reference the original file buffer, eliminating allocations.
-
-**Event streaming vs. AST building**
-JavaScript Markdown libraries often build full Abstract Syntax Trees. pulldown-cmark streams events, processing each element as encountered without holding the entire structure in memory.
-
-**SIMD-accelerated string search**
-Rust's standard library and libraries like `memchr` use SIMD instructions for finding patterns (like fence delimiters `~~~`) in large buffers, orders of magnitude faster than character-by-character scanning.
-
-**Compiled parsers**
-While JavaScript interprets regex at runtime, Rust parsers compile to native code. Combined with WASM, this provides near-native parsing performance even in Node.js.
-
-### Error Recovery
-
-Rust's Result types enable robust error handling during parsing:
-- Malformed Markdown doesn't crash the server
-- Partial parses can be recovered and diagnostics written to logs
+Rust's type system and Result types enable robust error handling:
 - Type safety ensures invalid states are unrepresentable
-
-Example error handling:
-```rust
-fn parse_request(content: &str) -> Result<Request, ParseError> {
-    let parser = Parser::new(content);
-    // ... parsing logic
-    Ok(request)
-}
-
-match parse_request(&file_content) {
-    Ok(req) => process_request(req),
-    Err(e) => write_diagnostic(&format!("Parse error: {}", e))
-}
-```
-
-### Implementation Notes
-
-The Rust parser will:
-- Use pulldown-cmark for full CommonMark compatibility
-- Implement zero-copy parsing for tail scanning (most common operation)
-- Cache parse state between file watches to avoid redundant work
-- Provide compatibility layer matching JavaScript parser's behavior for protocol compliance
-- Support both old (blockquote) and new (heading) formats during transition period
+- Malformed Markdown generates parse errors with position information
+- Diagnostics can be written to logs with precise line/column references
 
 Core responsibilities for the Rust server
 
 1. Master registry management (`daebug.md`)
-   - Maintain, update, and atomically write the registry file. Track connected realms, last heartbeat, state (idle/executing/failed), and pointers to per-instance files.
+   - Maintain, update, and write the registry file. Track connected realms, last heartbeat, state (idle/executing/failed), and pointers to per-instance files.
 
 2. Per-instance log management (per `docs/1-jsrepl.md`)
    - Provide endpoints to read and write per-instance files.
    - Validate appended chunks for required grammar (agent request header, fenced blocks) before accepting them as candidate requests.
-   - When accepting a request from a client, atomically remove the footer, insert server-managed request header and executing-announcement placeholder, and track the job in-memory.
-   - On receiving results from realm clients, append reply headers, result fences, background events, and re-append the canonical footer. Use a safe write strategy (write to temp-file + rename) to avoid corruption.
-   - Parse rich Markdown with hierarchical heading structure (see `docs/1.5.2-repl-tidy.md`)
+   - When accepting a request from a client, remove the footer, insert server-managed request header and executing-announcement placeholder, and track the job in-memory.
+   - On receiving results from realm clients, append reply headers, result fences, background events, and re-append the canonical footer.
+   - Parse rich Markdown with hierarchical heading structure using markdown-rs (see `docs/1.5.2-repl-tidy.md`)
+   - Use full-file parsing and diff-based detection to handle LLM insertions in unexpected locations
 
 3. Job lifecycle orchestration
    - Track job states: requested → dispatched → started → finished/failed/timeout.
@@ -193,7 +121,6 @@ Core responsibilities for the Rust server
 4. Background event capture API
    - Accept background event posts (console, window.onerror, unhandledrejection) from clients and buffer them per-instance until a job reply is written.
    - Serialize background events to file following the compression rules (first-2 / ellipsis / last-8) when flushing.
-   - Support streaming background events during long-running jobs (per `docs/1.4-background-events.md`)
 
 5. Worker realm registration, heartbeat and restart logging
    - Accept worker registration requests from page shims (worker name, realm id, metadata).
@@ -204,16 +131,12 @@ Core responsibilities for the Rust server
    - Provide endpoints to trigger test-run orchestration: a client requests a test run, the server records the run as a job and notifies the target realm to import the requested modules.
    - Collect structured test results posted back by the realm and persist them into the per-instance file in the expected formatted form.
    - The server does not import or execute test modules; it only coordinates which files to import and collects results.
-   - Support progress streaming during test execution (per `docs/1.5.1-test-runner.md`)
+   - Use in-place editing with markdown-rs to update test progress in relevant sections without unbounded growth
 
 7. CLI interface (per `docs/1.5-npx-tool.md`)
    - Implement `npx daebug` command with port derivation based on directory name hash
    - Support `--root`, `--port`, `--test` flags
    - Provide same user experience as current JavaScript CLI
-
-8. Security, auth and access controls
-   - Provide optional auth (API keys, HMAC, local-only binding) to ensure only authorized clients can read/write per-instance files.
-   - Sanitize filenames and inputs to prevent path traversal and injection into the repository.
 
 HTTP API surface (suggested endpoints)
 
@@ -253,14 +176,14 @@ HTTP API surface (suggested endpoints)
 Design notes on append/accept flow
 
 - Accept-on-append: clients append below the canonical footer. The server must validate the appended chunk and only accept it as a job when it contains the request header and at least one complete fenced code block.
-- Atomic file update: implement write via create-temp-file + fsync + rename to target path on POSIX-like platforms. On Windows use equivalent safe replace (write to temp, atomically replace via std APIs where possible). After write, re-open and verify canonical footer/header presence; retry a small number of times if verification fails.
+- File updates: protected in-process by per-instance locks. Writes are not atomic as far as externally visible state is concerned.
 - In-memory job snapshot: store the agentName, pageName, requestedAt, original tail snapshot, background buffer, and placeholder timestamps for the active job while it is executing.
 
 Concurrency model and persistence
 
 - Per-instance files are the authoritative source of truth. Server should treat them carefully: always read the file before modifying (no blind writes based on stale memory state).
 - Use a per-instance lock (in-memory async Mutex keyed by instance name) to ensure only one writer modifies a file at a time.
-- Use an append/replace strategy: read entire file, compute new content, write to temp, rename. Avoid partial in-place writes.
+- Full-file parsing with markdown-rs enables diff-based detection of changes regardless of where LLMs insert content.
 
 Client expectations (JS shims / host runtimes)
 
@@ -274,12 +197,6 @@ Test-runner orchestration specifics
 - The realm client performs dynamic imports and registers tests locally (test/describe/it). Tests are executed in the realm and the client collects per-test results.
 - The client posts a structured TestResults JSON back to the server which persists it in the per-instance file using the same reply + background format described in `docs/1-jsrepl.md`.
 
-Security and sandboxing
-
-- Because execution occurs on client-side realms, the server must validate that posted results match expected jobIds (to prevent spurious writes).
-- Consider HMACing job payloads so clients can prove they received the authorized job (or sign results) when operating on untrusted networks.
-- The server should default to binding to localhost for local development and require explicit configuration to listen on external interfaces.
-
 Monitoring, diagnostics and operator UX
 
 - Expose a small admin UI (optional) or debug endpoints to list active instances, jobs-in-flight, worker status, and recent logs.
@@ -287,7 +204,7 @@ Monitoring, diagnostics and operator UX
 
 Testing strategy
 
-- Unit tests (Rust): parser and validation logic for agent request header detection, fence extraction, footer behaviour, background event compression, and atomic write helpers.
+- Unit tests (Rust): parser and validation logic for agent request header detection, fence extraction, footer behaviour, background event compression, and in-place editing with markdown-rs.
 - Integration tests (Rust + Node shim): run an integration scenario that spins up the Rust server, posts an append that becomes a job, simulate a realm client that polls and posts a result, and assert the per-instance file contains correct reply blocks.
 - End-to-end manual demo: run server locally and load a sample `browser-shim.js` in a test page that polls server endpoints and posts results.
 
@@ -298,8 +215,8 @@ Implementation roadmap
    - WASM build target using `wasm-bindgen` and `wasm-pack`
 
 2) Core components
-   - File manager: safe read/write, temp-file replace, per-instance lock manager.
-   - Parser: use `pulldown-cmark` for event-driven Markdown parsing. Implement the `docs/1-jsrepl.md` parsing rules to detect agent requests, fenced blocks, footer management and background serialization rules. Support rich Markdown structure from `docs/1.5.2-repl-tidy.md`. Optimize tail scanning for new request detection.
+   - File manager: safe read/write, per-instance lock manager.
+   - Parser: use `markdown-rs` for full-file parsing and AST generation. Build diff-based change detection to handle LLM insertions in unexpected locations. Support in-place editing for test runner output. Implement the `docs/1-jsrepl.md` parsing rules to detect agent requests, fenced blocks, footer management and background serialization rules. Support rich Markdown structure from `docs/1.5.2-repl-tidy.md`.
    - Job manager: in-memory state, timeouts, retries, and lifecycle transitions.
 
 3) HTTP routes
@@ -313,10 +230,9 @@ Implementation roadmap
 5) Tests
    - Unit tests for parser and file manager.
    - Integration tests with Node.js shim.
-   - Validation against existing JavaScript test suite for protocol compatibility.
 
 6) Documentation
-   - Write migration guide from JavaScript to Rust+WASM version
+   - Write guide for JavaScript to Rust+WASM version
    - Document any performance improvements or behavioral differences
 
 Technical foundation
@@ -324,7 +240,7 @@ Technical foundation
 **Core Crates**:
 - `tokio`: Async runtime for high-concurrency I/O
 - `axum`: HTTP server framework
-- `pulldown-cmark`: Fast, CommonMark-compliant Markdown parser with event streaming
+- `markdown-rs`: Full CommonMark + GFM parser with native WASM compilation and complete AST generation
 - `notify`: File watching (or platform-specific inotify/FSEvents)
 - `serde`: Serialization for registry persistence and protocol messages
 - `wasm-bindgen`: WASM interop for Node.js deployment
@@ -335,8 +251,7 @@ Technical foundation
 **Distribution**:
 - npm package with precompiled WASM module
 - Thin JavaScript wrapper for CLI and Node.js integration
-- Same package name and CLI interface as current version for seamless upgrade
 
 Conclusion
 
-The Rust + WASM implementation provides a drop-in replacement for the current JavaScript server with improved performance and reliability, while maintaining full compatibility with existing REPL protocols and client implementations. The WASM compilation enables universal npm distribution without platform-specific build requirements.
+The Rust + WASM implementation provides improved performance and reliability through precise Markdown parsing with markdown-rs. Full-file parsing and diff-based reactions enable robust handling of LLM edits in unexpected locations. In-place editing for test results prevents unbounded log growth. WASM compilation enables universal npm distribution without platform-specific build requirements.

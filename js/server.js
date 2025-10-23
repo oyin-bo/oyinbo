@@ -1,6 +1,6 @@
 // @ts-check
 import { createServer } from 'node:http';
-import { readFileSync, createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, extname, relative, sep, resolve, normalize } from 'node:path';
 import { URL } from 'node:url';
 import * as registry from './registry.js';
@@ -27,8 +27,13 @@ const DAEBUG_MODULES = {
   '/daebug/worker-bootstrap.js': workerBootstrapModule
 };
 
-/** @param {string} root @param {number} port */
-export function start(root, port) {
+/**
+ * @param {string} root
+ * @param {number} port
+ * @param {string} dirName
+ * @param {string} bannerPrefix
+ */
+export async function start(root, port, dirName, bannerPrefix) {
   // Install handlers for graceful shutdown on Ctrl+C and other signals
   installShutdownHandlers(root);
   
@@ -111,12 +116,102 @@ export function start(root, port) {
     createReadStream(file).pipe(res);
   });
   
-  server.listen(port, () => console.log(
-    'serving  ' + root +
-    '  👉  http://localhost:' + port + '/\n' +
-    '=================================================================================\n' +
-    '   📃 daebug.md  registry'
-  ));
+  const desiredUrl = `http://localhost:${port}/`;
+  process.stdout.write(bannerPrefix + desiredUrl);
+  
+  const tryListenPort = (/** @type {number} */ portToTry) => {
+    return new Promise((resolve, reject) => {
+      const onError = (/** @type {*} */ err) => {
+        if (err.code === 'EADDRINUSE') {
+          resolve(false);
+        } else {
+          reject(err);
+        }
+      };
+      
+      server.once('error', onError);
+      server.listen(portToTry, () => {
+        server.removeListener('error', onError);
+        resolve(true);
+      });
+    });
+  };
+  
+  // Try desired port
+  let success = await tryListenPort(port);
+  
+  if (success) {
+    console.log('\n=================================================================================\n   📃 daebug.md  registry');
+    return;
+  }
+  
+  // Desired port taken - attempt shutdown signal
+  const daebugMdPath = join(root, 'daebug.md');
+  let daebugContent = '';
+  try {
+    daebugContent = readFileSync(daebugMdPath, 'utf8');
+  } catch (e) {
+    // File doesn't exist yet
+  }
+  
+  const contentBeforeShutdown = daebugContent + '\n%%SHUTDOWN%%\n';
+  writeFileSync(daebugMdPath, contentBeforeShutdown);
+  
+  // Wait 3 seconds for the other process to shut down
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  
+  const updatedContent = readFileSync(daebugMdPath, 'utf8');
+  const fileWasRewritten = updatedContent !== contentBeforeShutdown;
+  
+  if (fileWasRewritten) {
+    // External process responded and rewrote the file - retry desired port
+    success = await tryListenPort(port);
+    if (success) {
+      console.log('\n=================================================================================\n   📃 daebug.md  registry');
+      return;
+    }
+  } else {
+    // No external process responded - remove shutdown signal
+    writeFileSync(daebugMdPath, daebugContent);
+  }
+  
+  // Cross out desired URL
+  const crossedUrl = desiredUrl.split('').map(c => c + '\u0336').join('');
+  process.stdout.write('\r' + bannerPrefix.replace('👉  ', '') + crossedUrl);
+  
+  // Try fallback ports
+  for (let i = 1; i <= 19; i++) {
+    const variant = dirName + i;
+    const hash = hashString(variant.toLowerCase());
+    const nextPort = 8100 + (hash % 1000);
+    const nextUrl = `http://localhost:${nextPort}/`;
+    
+    process.stdout.write('\r' + bannerPrefix.replace('👉  ', '') + crossedUrl + '  👉  ' + nextUrl);
+    
+    success = await tryListenPort(nextPort);
+    if (success) {
+      console.log('\n=================================================================================\n   📃 daebug.md  registry');
+      return;
+    }
+  }
+  
+  console.error(`\n\n� Could not find available port. All 20 attempts failed.`);
+  process.exit(1);
+}
+
+/**
+ * Simple string hash function
+ * @param {string} str
+ * @returns {number}
+ */
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
 }
 
 /**

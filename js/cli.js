@@ -2,7 +2,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { createServer } from 'node:http';
 import * as registry from './registry.js';
 import * as server from './server.js';
 import * as watcher from './watcher.js';
@@ -78,48 +77,7 @@ function derivePort(root) {
   return 8100 + (hash % 1000);
 }
 
-/**
- * Try to bind to a port
- * @param {number} port
- * @returns {Promise<boolean>}
- */
-function tryPort(port) {
-  return new Promise((resolve) => {
-    const testServer = createServer();
-    testServer.once('error', () => resolve(false));
-    testServer.once('listening', () => {
-      testServer.close();
-      resolve(true);
-    });
-    testServer.listen(port, '127.0.0.1');
-  });
-}
 
-/**
- * Find an available port
- * @param {string} root
- * @param {number} preferredPort
- * @returns {Promise<number>}
- */
-async function findAvailablePort(root, preferredPort) {
-  // Try preferred port first
-  if (await tryPort(preferredPort)) {
-    return preferredPort;
-  }
-
-  // Try fallback ports based on hash variants
-  const dirName = basename(root);
-  for (let i = 1; i <= 19; i++) {
-    const variant = dirName + i;
-    const hash = hashString(variant.toLowerCase());
-    const port = 8100 + (hash % 1000);
-    if (await tryPort(port)) {
-      return port;
-    }
-  }
-
-  throw new Error('Could not find available port. Specify --port explicitly.');
-}
 
 /**
  * Show help message
@@ -170,22 +128,14 @@ export async function run() {
     return;
   }
 
-  process.stdout.write(`👾Daebug v${pkg.version}`);
-
-  // Determine port
-  let finalPort;
-  if (port !== null) {
-    finalPort = port;
-  } else if (process.env.PORT) {
-    finalPort = Number(process.env.PORT);
-  } else {
-    const derivedPort = derivePort(root);
-    finalPort = await findAvailablePort(root, derivedPort);
-  }
-
-  process.stdout.write(' ');
+  const finalPort = port !== null ? port : 
+                     process.env.PORT ? Number(process.env.PORT) : 
+                     derivePort(root);
+  
+  const bannerPrefix = `👾Daebug v${pkg.version} serving  ${root}  👉  `;
+  const dirName = basename(root);
 
   registry.init(root);
-  server.start(root, finalPort);
+  await server.start(root, finalPort, dirName, bannerPrefix);
   watcher.watchForRestart(root);
 }

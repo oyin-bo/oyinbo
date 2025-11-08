@@ -16,10 +16,95 @@ import { workerBootstrapContent } from './modules/worker-bootstrap.js';
 
 /** @type {Record<string, string>} */
 const MIME = {
+  // Documents & markup
   '.html': 'text/html; charset=utf-8',
+  '.htm': 'text/html; charset=utf-8',
+  '.xhtml': 'application/xhtml+xml; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
+  '.svg': 'image/svg+xml; charset=utf-8',
+
+  // Scripts
   '.js': 'application/javascript; charset=utf-8',
+  '.cjs': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.ts': 'text/typescript; charset=utf-8',
+  
+  // Styles
+  '.css': 'text/css; charset=utf-8',
+  '.scss': 'text/x-scss; charset=utf-8',
+  '.sass': 'text/x-sass; charset=utf-8',
+  '.less': 'text/x-less; charset=utf-8',
+
+  // Data & config
   '.json': 'application/json; charset=utf-8',
-  '.css': 'text/css; charset=utf-8'
+  '.jsonld': 'application/ld+json; charset=utf-8',
+  '.yaml': 'text/yaml; charset=utf-8',
+  '.yml': 'text/yaml; charset=utf-8',
+  '.toml': 'text/toml; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
+  '.tsv': 'text/tab-separated-values; charset=utf-8',
+
+  // WebAssembly & binaries
+  '.wasm': 'application/wasm',
+  '.wasm-bundle': 'application/wasm',
+
+  // Images
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.ico': 'image/x-icon',
+  '.bmp': 'image/bmp',
+  '.tiff': 'image/tiff',
+  '.tif': 'image/tiff',
+
+  // Audio
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.webm-audio': 'audio/webm',
+  '.aac': 'audio/aac',
+  '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+
+  // Video
+  '.mp4': 'video/mp4',
+  '.mpeg': 'video/mpeg',
+  '.webm': 'video/webm',
+  '.ogv': 'video/ogg',
+  '.mov': 'video/quicktime',
+  '.mkv': 'video/x-matroska',
+  '.avi': 'video/x-msvideo',
+  '.flv': 'video/x-flv',
+
+  // Fonts
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.eot': 'application/vnd.ms-fontobject',
+
+  // Archives & compression
+  '.zip': 'application/zip',
+  '.gzip': 'application/gzip',
+  '.gz': 'application/gzip',
+  '.tar': 'application/x-tar',
+  '.7z': 'application/x-7z-compressed',
+  '.rar': 'application/x-rar-compressed',
+
+  // Documents & text
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
+  '.markdown': 'text/markdown; charset=utf-8',
+  '.rst': 'text/x-rst; charset=utf-8',
+  '.tex': 'text/x-tex',
+  
+  // Web app manifest & service worker
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.mjs-sw': 'application/javascript; charset=utf-8'  // service workers
 };
 
 const DAEBUG_MODULES = /** @type {const} */({
@@ -141,7 +226,7 @@ export async function start(root, port, dirName, bannerPrefix) {
     
     // Everything else: stream as-is
     // Add cache-busting headers for JS files to prevent server-side caching
-    const headers = { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' };
+    const headers = /** @type {Record<string, string>} */({ 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
     if (extname(file) === '.js') {
       headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0';
       headers['Pragma'] = 'no-cache';

@@ -77,7 +77,10 @@ export function watchPage(root, page) {
         const dir = page.file.replace(/[\\\/][^\\\/]+$/, '') || '.';
         const name = page.file.split(/[\\\/]/).pop();
         watcher = watch(dir, (evt, file) => {
-          if (file === name) { setupWatch(); debounce(); }
+          if (file && file.split(/[\\\/]/).pop() === name) {
+            setupWatch();
+            debounce();
+          }
         });
       }
     } catch (err) {

@@ -39,11 +39,11 @@ export async function clientMainFunction(overrides, testExport) {
   let endpoint = '';
 
   /**
-   * @type {{
+  /** @type {{
    *  type: 'error' | 'console',
    *  source?: 'window.onerror' | 'unhandledrejection',
    *  level?: string,
-   *  ts: number,
+   *  eventAt: string,
    *  message: string,
    *  stack?: string,
    *  caller?: string
@@ -101,7 +101,7 @@ export async function clientMainFunction(overrides, testExport) {
       const workerName = sanitizeName(pageName + '-webworker');
 
       // Create worker from served module (inherits import maps)
-      const workerUrl = location.origin + '/daebug/worker-bootstrap.js'; // TODO: serve from root path, not directory
+      const workerUrl = location.origin + '/-daebug-worker-bootstrap.js'; // TODO: serve from root path, not directory
       const w = new Worker(workerUrl, { name: workerName, type: 'module' });
 
       w.addEventListener('message', e => {
@@ -116,7 +116,7 @@ export async function clientMainFunction(overrides, testExport) {
       workerRestartCount++;
       lastWorkerPong = Date.now();
 
-      fetch('/daebug?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
+      fetch('/-daebug-channel?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'worker-init', mainPage: pageName })
@@ -136,7 +136,7 @@ export async function clientMainFunction(overrides, testExport) {
     if (timeSinceLastPong > WORKER_TIMEOUT) {
       console.warn('👾𝘂𝗻𝗿𝗲𝘀𝗽𝗼𝗻𝘀𝗶𝘃𝗲 worker, restarting');
       const workerName = sanitizeName(pageName + '-webworker');
-      fetch('/daebug?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
+      fetch('/-daebug-channel?name=' + encodeURIComponent(workerName) + '&url=worker://' + encodeURIComponent(workerName), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'worker-timeout', duration: timeSinceLastPong })
@@ -187,10 +187,10 @@ export async function clientMainFunction(overrides, testExport) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            type: 'background-flush',
-            events: eventsToFlush,
-            timestamp: lastFlushTime
-          })
+              type: 'background-flush',
+              events: eventsToFlush,
+              reportedAt: new Date(lastFlushTime).toISOString()
+            })
         });
       } catch (err) {
         // Restore events if send failed
@@ -236,7 +236,7 @@ export async function clientMainFunction(overrides, testExport) {
     backgroundEvents.push({
       type: 'error',
       source: 'window.onerror',
-      ts: Date.now(),
+      eventAt: new Date().toISOString(),
       message: e.message || String(e),
       stack: e.error?.stack || ''
     });
@@ -248,7 +248,7 @@ export async function clientMainFunction(overrides, testExport) {
     backgroundEvents.push({
       type: 'error',
       source: 'unhandledrejection',
-      ts: Date.now(),
+      eventAt: new Date().toISOString(),
       message: String(e.reason),
       stack: e.reason?.stack || ''
     });
@@ -278,7 +278,7 @@ export async function clientMainFunction(overrides, testExport) {
           backgroundEvents.push({
             type: 'console',
             level,
-            ts: now.getTime(),
+            eventAt: now.toISOString(),
             message,
             caller
           });
@@ -332,7 +332,7 @@ export async function clientMainFunction(overrides, testExport) {
     addEventListener('error', handleErrorEvent);
     addEventListener('unhandledrejection', handlePromiseRejectionEvent);  
 
-    endpoint = '/daebug?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(location.href);
+    endpoint = '/-daebug-channel?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(location.href);
 
     worker = createWorker();
     if (worker) {

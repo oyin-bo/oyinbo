@@ -28,8 +28,8 @@ export function writeDiagnostic(file, message) {
     // File doesn't exist yet, create it with diagnostic
     let lines = [];
     lines = ensureFileHeader(lines, 'System Diagnostic');
-    const now = Date.now();
-    const timestamp = clockFmt(now);
+  const nowIso = new Date().toISOString();
+  const timestamp = clockFmt(nowIso);
     
     const content = [
       ...lines,
@@ -50,8 +50,8 @@ export function writeDiagnostic(file, message) {
   lines = ensureFileHeader(lines, 'System Diagnostic');
   
   const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
-  const now = Date.now();
-  const timestamp = clockFmt(now);
+  const nowIso = new Date().toISOString();
+  const timestamp = clockFmt(nowIso);
   
   const output = [
     ...lines.slice(0, footerIdx),
@@ -112,7 +112,7 @@ export function writeTestProgress(file, markdown) {
 /**
  * Write background events (orphaned events after job completion) to a page's chat log
  * @param {string} file - Path to the page's chat file
- * @param {Array<{type: string, level?: string, source?: string, ts: string, message: string, stack?: string, caller?: string}>} events - Background events
+ * @param {Array<{type: string, level?: string, source?: string, eventAt: string, message: string, stack?: string, caller?: string}>} events - Background events
  * @param {string} timestamp - Timestamp of flush
  */
 export function writeBackgroundEvents(file, events, timestamp) {
@@ -154,8 +154,8 @@ const buildBlocks = result => {
  * @param {{ ok: boolean, value?: any, error?: any, errors?: string[], backgroundEvents?: any[] }} result
  */
 export function writeReply(job, result) {
-  const now = Date.now();
-  const duration = job.startedAt ? now - job.startedAt : 0;
+  const nowIso = new Date().toISOString();
+  const duration = job.startedAt ? (Date.parse(nowIso) - Date.parse(job.startedAt)) : 0;
 
   const v = result.value;
   let resultText = result.ok 
@@ -178,10 +178,10 @@ export function writeReply(job, result) {
   let footerIdx = findFooter(lines);
   if (footerIdx < 0) footerIdx = lines.length;
   
-  const reply = formatReplyHeader(job.page.name, job.agent, now, duration, !result.ok);
+  const reply = formatReplyHeader(job.page.name, job.agent, nowIso, duration, !result.ok);
   const blocks = buildBlocks(result);
   
-  const agent = formatAgentHeader(job.agent, job.page.name, job.requestedAt || now);
+  const agent = formatAgentHeader(job.agent, job.page.name, job.requestedAt || nowIso);
   const code = formatCodeBlock(job.code);
   
   let output;
@@ -233,10 +233,10 @@ export function writeExecuting(job) {
   lines = ensureFileHeader(lines, job.page.name + ' Session');
   
   const footerIdx = findFooter(lines) >= 0 ? findFooter(lines) : lines.length;
-  const now = Date.now();
-  const agent = formatAgentHeader(job.agent, job.page.name, job.requestedAt || now);
+  const nowIso = new Date().toISOString();
+  const agent = formatAgentHeader(job.agent, job.page.name, job.requestedAt || nowIso);
   const code = formatCodeBlock(job.code);
-  const executing = `#### 👍${job.page.name} to ${job.agent} at ${clockFmt(now)}`;
+  const executing = `#### 👍${job.page.name} to ${job.agent} at ${clockFmt(nowIso)}`;
   
   let output;
   if (job.requestHasFooter === false) {

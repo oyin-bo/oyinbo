@@ -2,11 +2,13 @@
 
 /**
  * Format milliseconds as HH:MM:SS time string
- * @param {number} ms
+ * @param {string} iso ISO timestamp string (e.g. new Date().toISOString())
  * @returns {string}
  */
-export function clockFmt(ms) {
-  const d = new Date(ms);
+export function clockFmt(iso) {
+  // Expect an ISO timestamp string only (no numeric ms allowed)
+  const when = Date.parse(iso);
+  const d = new Date(when);
   return [d.getHours(), d.getMinutes(), d.getSeconds()]
     .map(x => String(x).padStart(2, '0'))
     .join(':');
@@ -28,7 +30,7 @@ export function durationFmt(ms) {
  */
 export function findFooter(lines) {
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].startsWith('> Write code in a fenced JS block')) {
+    if (lines[i].startsWith('> Append your JavaScript snippet below')) {
       const prevLine = lines[i - 1]?.trim() || '';
       if (prevLine.startsWith('--') && prevLine.endsWith('--') && prevLine.replace(/-/g, '').trim() === '')
         return i -1;
@@ -118,7 +120,10 @@ export function formatSessionGuide() {
 - **Section headers:** Use level-2 headers (\`##\`) to mark substantial debugging turns. Add a short note on your plan below the header.
 - **Cleanup:** As sessions grow long, replace old irrelevant chunks between level-2 section headers with 1-paragraph summaries.
 - **Simple requests:** Start with basic expressions like \`1+1\`, \`Object.keys(window)\` to verify connectivity
-- **Test runs:** Use \`(await import('node:test')).run();\` to execute tests and review output`;
+- **Test runs:** Use \`(await import('node:test')).run();\` to execute tests and review output
+- **Async code:** Use \`async/await\` freely; the REPL supports top-level await
+- **Timestamp:** When appending your JavaScript code snippet at the end of the file, immediately verify the timestamp. IT'S A CRITICAL SAFETY CHECK!
+`;
 }
 
 /**
@@ -149,7 +154,7 @@ export function ensureFileHeader(lines, defaultTitle) {
  * Format agent/sender header (for requests being sent to a page)
  * @param {string} agent Name of the agent/sender
  * @param {string} target Name of the target/page
- * @param {number} ts Timestamp in milliseconds
+ * @param {string} ts ISO timestamp string
  * @returns {string}
  */
 export function formatAgentHeader(agent, target, ts) {
@@ -160,7 +165,7 @@ export function formatAgentHeader(agent, target, ts) {
  * Format reply header (response from a page)
  * @param {string} page Name of the page
  * @param {string} agent Name of the agent
- * @param {number} ts Timestamp in milliseconds
+ * @param {string} ts ISO timestamp string
  * @param {number} dur Duration in milliseconds
  * @param {boolean} err Whether there was an error
  * @returns {string}
@@ -181,7 +186,7 @@ export function formatCodeBlock(code) {
 
 /**
  * Format a single background event as a fenced block with level-5 header
- * @param {{type: string, level?: string, source?: string, ts?: string, fullTs?: string, message: string, stack?: string, caller?: string}} event
+ * @param {{type: string, level?: string, source?: string, eventAt?: string, message: string, stack?: string, caller?: string}} event
  * @returns {string}
  */
 export function formatBackgroundEvent(event) {
@@ -190,16 +195,15 @@ export function formatBackgroundEvent(event) {
     const eventLabel = event.source || 'window.onerror';
     const fenceType = event.source || 'Error';
     let content = event.stack || event.message;
-    
-    // Append timestamp to content
-    if (event.fullTs && content) {
+    // Only use canonical eventAt (ISO) for display. Presentation-only fields are not transported.
+    if (event.eventAt && content) {
       const lines = content.split('\n');
       if (lines.length > 0 && lines[0].trim()) {
-        lines[0] = lines[0].trimEnd() + ' ' + event.fullTs;
+        lines[0] = lines[0].trimEnd() + ' ' + clockFmt(event.eventAt);
         content = lines.join('\n');
       }
     }
-    
+
     return `##### ${emoji}${eventLabel}\n\`\`\`${fenceType}\n${content}\n\`\`\``;
   } else if (event.type === 'console') {
     const level = event.level || 'log';
@@ -231,7 +235,16 @@ export function formatBackgroundEvent(event) {
     if (event.caller && event.caller.trim()) {
       content = `${event.caller}\n${event.message}`;
     }
-    
+
+    // Only use canonical eventAt for console metadata display
+    if (event.eventAt) {
+      const lines = content.split('\n');
+      if (lines.length > 0 && lines[0].trim()) {
+        lines[0] = lines[0].trimEnd() + ' ' + clockFmt(event.eventAt);
+        content = lines.join('\n');
+      }
+    }
+
     return `##### ${emoji}${eventLabel}\n\`\`\`${fenceType} ${metadata}\n${content}\n\`\`\``;
   }
   
@@ -293,7 +306,7 @@ export function formatResultBlocks(result) {
 export function formatFooter() {
   return (
     `----------------------------------------------------------------------
-> Write code in a fenced JS block below to execute against this page.
+> Append your JavaScript snippet below to execute against this page.
 
 
 `);
@@ -319,7 +332,7 @@ export function parseRequest(text, pageName) {
   const lines = text.split('\n');
   let footerIdx = -1;
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].startsWith('> Write code in a fenced JS block')) { 
+    if (lines[i].startsWith('> Append your JavaScript snippet below')) { 
       footerIdx = i; 
       break; 
     }
@@ -389,6 +402,9 @@ export function parseRequest(text, pageName) {
   }
 
   const code = lastMatch.code.endsWith('\n') ? lastMatch.code.slice(0, -1) : lastMatch.code;
+  
+  // Reject if code is empty or whitespace-only
+  if (!code.trim()) return null;
 
   // Reject if code starts with a response header (old or new format)
   if (/^(>|\#{3,4})\s*(\*\*\S+\*\*|[👍🚫]\S+)\s+to\s+\S+/.test(code.trim())) return null;

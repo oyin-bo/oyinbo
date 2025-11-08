@@ -111,7 +111,7 @@ test('getOrCreate finds existing per-instance file with footer', () => {
     
     const content = [
       'Test file',
-      '> Write code in a fenced JS block below to execute against this page.',
+      '> Append your JavaScript snippet below to execute against this page.',
       ''
     ].join('\n');
     

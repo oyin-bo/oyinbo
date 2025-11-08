@@ -57,7 +57,7 @@ test('durationFmt returns ms for 0', () => {
 
 // findFooter tests
 test('findFooter returns index of footer line', () => {
-  const lines = ['line1', 'line2', '> Write code in a fenced JS block below', 'line4'];
+  const lines = ['line1', 'line2', '> Append your JavaScript snippet below', 'line4'];
   const result = findFooter(lines);
   assert.strictEqual(result, 2);
 });
@@ -70,9 +70,9 @@ test('findFooter returns -1 when footer not found', () => {
 
 test('findFooter finds footer from bottom', () => {
   const lines = [
-    '> Write code in a fenced JS block below',
+    '> Append your JavaScript snippet below',
     'middle',
-    '> Write code in a fenced JS block below'
+    '> Append your JavaScript snippet below'
   ];
   const result = findFooter(lines);
   assert.strictEqual(result, 2);
@@ -440,7 +440,7 @@ describe('writeDiagnostic', () => {
     const content = readFileSync(testFile, 'utf8');
     assert.match(content, /# System Diagnostic/);
     assert.match(content, /Test diagnostic message/);
-    assert.match(content, /Write code in a fenced JS block/);
+    assert.match(content, /Append your JavaScript snippet below/);
     
     unlinkSync(testFile);
   });
@@ -455,7 +455,7 @@ describe('writeDiagnostic', () => {
       '```',
       '',
       '----------------------------------------------------------------------',
-      '> Write code in a fenced JS block below to execute against this page.',
+      '> Append your JavaScript snippet below to execute against this page.',
       '',
       ''
     ].join('\n');
@@ -475,7 +475,7 @@ describe('writeDiagnostic', () => {
       '# Test File',
       '',
       '----------------------------------------------------------------------',
-      '> Write code in a fenced JS block below to execute against this page.',
+      '> Append your JavaScript snippet below to execute against this page.',
       '',
       ''
     ].join('\n');
@@ -485,7 +485,7 @@ describe('writeDiagnostic', () => {
     
     const content = readFileSync(testFile, 'utf8');
     const lines = content.split('\n');
-    const footerIdx = lines.findIndex(l => l.includes('Write code in a fenced'));
+  const footerIdx = lines.findIndex(l => l.includes('Append your JavaScript snippet below'));
     const diagnosticIdx = lines.findIndex(l => l.includes('Restart attempt 3'));
     
     assert.ok(diagnosticIdx >= 0);
@@ -534,9 +534,9 @@ describe('writer edge cases', () => {
 
   test('findFooter handles lines with footer substring', () => {
     const lines = [
-      'This line mentions: Write code in a fenced JS block',
+      'This line mentions: Append your JavaScript snippet below',
       'But this is the real footer:',
-      '> Write code in a fenced JS block below to execute against this page.'
+      '> Append your JavaScript snippet below to execute against this page.'
     ];
     const idx = findFooter(lines);
     assert.equal(idx, 2);

@@ -9,9 +9,9 @@ import fs from 'node:fs';
  *   agent: string,
  *   requestHasFooter?: boolean,
  *   code: string,
- *   requestedAt: number,
- *   startedAt: number | null,
- *   finishedAt: number | null,
+ *   requestedAt: string,
+ *   startedAt: string | null,
+ *   finishedAt: string | null,
  *   timeout: ReturnType<typeof setTimeout> | null,
  *   _placeholderInterval?: ReturnType<typeof setInterval>
  * }} Job
@@ -41,9 +41,9 @@ export function create(page, agent, code, requestHasFooter = true) {
     agent,
     code,
     requestHasFooter,
-    requestedAt: Date.now(),
-    startedAt: null,
-    finishedAt: null,
+  requestedAt: new Date().toISOString(),
+  startedAt: null,
+  finishedAt: null,
     timeout: null
   };
   jobs.set(page.name, job);
@@ -118,12 +118,13 @@ async function onTimeout(job) {
 /** @param {Job} job */
 export function start(job) {
   if (job.startedAt) return;
-  job.startedAt = Date.now();
+  job.startedAt = new Date().toISOString();
   try { writer.writeExecuting(job); } 
   catch (err) { console.warn('[job] writeExecuting failed', err); }
   
   job._placeholderInterval = setInterval(() => {
-    const secs = Math.floor((Date.now() - (job.startedAt || Date.now())) / 1000);
+    const startedMs = job.startedAt ? Date.parse(job.startedAt) : Date.now();
+    const secs = Math.floor((Date.now() - startedMs) / 1000);
     try {
       const text = fs.readFileSync(job.page.file, 'utf8').replace(/executing \(\d+s\)/, `executing (${secs}s)`);
       fs.writeFileSync(job.page.file, text, 'utf8');
@@ -136,7 +137,7 @@ export function start(job) {
 export function finish(job) {
   if (job.timeout) clearTimeout(job.timeout);
   if (job._placeholderInterval) { clearInterval(job._placeholderInterval); delete job._placeholderInterval; }
-  job.finishedAt = job.finishedAt || Date.now();
+  job.finishedAt = job.finishedAt || new Date().toISOString();
   job.page.state = 'idle';
   jobs.delete(job.page.name);
 }

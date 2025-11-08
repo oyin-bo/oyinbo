@@ -8,9 +8,11 @@ import * as job from './job.js';
 import * as writer from './writer.js';
 import * as watcher from './watcher.js';
 import { clientScript } from './client.js';
-import { testRunnerModule, assertModule, workerBootstrapModule } from './modules-loader.js';
 import { installShutdownHandlers } from './shutdown.js';
 import { formatTestProgress as formatTestProgressTemplate } from './test.template.js';
+import { nodeTestContent } from './modules/node-test.js';
+import { nodeAssertContent } from './modules/node-assert.js';
+import { workerBootstrapContent } from './modules/worker-bootstrap.js';
 
 /** @type {Record<string, string>} */
 const MIME = {
@@ -20,11 +22,16 @@ const MIME = {
   '.css': 'text/css; charset=utf-8'
 };
 
-/** @type {Record<string, string>} */
-const DAEBUG_MODULES = {
-  '/daebug/test-runner.js': testRunnerModule,
-  '/daebug/assert.js': assertModule,
-  '/daebug/worker-bootstrap.js': workerBootstrapModule
+const DAEBUG_MODULES = /** @type {const} */({
+  '/-daebug-node:test.js': nodeTestContent,
+  '/-daebug-node:assert.js': nodeAssertContent,
+  '/-daebug-worker-bootstrap.js': workerBootstrapContent
+});
+
+const DAEBUG_IMPORT_MAPS = {
+  'node:test': '/-daebug-node:test.js',
+  'node:assert': '/-daebug-node:assert.js',
+  'node:assert/strict': '/-daebug-node:assert.js'
 };
 
 /**
@@ -41,7 +48,7 @@ export async function start(root, port, dirName, bannerPrefix) {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     
     // Polling endpoints
-    if (url.pathname === '/daebug') {
+    if (url.pathname === '/-daebug-channel') {
       if (req.method === 'GET') return handlePoll(root, url, res);
       if (req.method === 'POST') return handleResult(url, req, res);
     }
@@ -53,16 +60,18 @@ export async function start(root, port, dirName, bannerPrefix) {
         'Content-Type': MIME['.js'],
         'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
         'Pragma': 'no-cache'
-      }).end(DAEBUG_MODULES[url.pathname]);
+      }).end(DAEBUG_MODULES[
+        /** @type {keyof typeof DAEBUG_MODULES  } */(url.pathname)
+      ]);
     }
     
     // Test discovery endpoint
-    if (url.pathname === '/daebug/discover-tests' && req.method === 'POST') {
+    if (url.pathname === '/-daebug-discover-tests' && req.method === 'POST') {
       return handleTestDiscovery(root, req, res);
     }
     
     // Test progress streaming endpoint
-    if (url.pathname === '/daebug/test-progress' && req.method === 'POST') {
+    if (url.pathname === '/-daebug-test-progress' && req.method === 'POST') {
       return handleTestProgress(req, res);
     }
     
@@ -72,19 +81,44 @@ export async function start(root, port, dirName, bannerPrefix) {
       : url.pathname;
     
     const file = join(root, path);
-    if (!existsSync(file)) {
+    const isIframeRunnerHTML = path === '/-daebug-iframe.html';
+
+    if (!existsSync(file) && !isIframeRunnerHTML) {
       console.log(`👾𝟰𝟬𝟰 ${url.pathname}`);
       return res.writeHead(404).end('Not found');
     }
-    
+
+    // TODO: check if the path is a directory
+    let isFile;
+    if (isIframeRunnerHTML) {
+      isFile = true;
+    } else {
+      try {
+        isFile = statSync(file).isFile();
+      } catch (e) {
+        isFile = false;
+      }
+    }
+
+    if (!isFile) {
+      console.log(`👾𝟰𝟬𝟯 ${url.pathname}`);
+      return res.writeHead(403).end('Directory: forbidden');
+    }
+
     // HTML files: inject/merge import maps and client script
     if (extname(file) === '.html') {
-      const html = readFileSync(file, 'utf8');
-      const modified = processImportMapHTML(html, root);
-      const withClient = injectClientScript(modified);
+
+      const html = isIframeRunnerHTML ?
+        `
+<!DOCTYPE html>
+<meta charset="utf-8">
+<base href="/">
+<body></body>` :
+        injectClientScript(processImportMapHTML(readFileSync(file, 'utf8'), root));
+            
       console.log(`👾serving HTML with import map injected: ${path}`);
       return res.writeHead(200, { 'Content-Type': MIME['.html'] })
-        .end(withClient);
+        .end(html);
     }
     
     // JSON files: check if import map, merge if yes
@@ -220,13 +254,7 @@ function hashString(str) {
  * @param {string} root
  * @returns {string}
  */
-function processImportMapHTML(html, root) {
-  const daebugMappings = {
-    'node:test': '/daebug/test-runner.js',
-    'node:assert': '/daebug/assert.js',
-    'node:assert/strict': '/daebug/assert.js'
-  };
-  
+function processImportMapHTML(html, root) {  
   // Check for inline import maps
   // Matches: <script type="importmap">...</script> with any attributes and quote styles
   const inlineRegex = /<script\s+(?:[^>]*\s+)?type\s*=\s*["']?importmap["']?(?:\s+[^>]*)?>([^]*?)<\/script>/gi;
@@ -239,7 +267,7 @@ function processImportMapHTML(html, root) {
       const existing = JSON.parse(mapContent);
       const merged = {
         imports: {
-          ...daebugMappings,
+          ...DAEBUG_IMPORT_MAPS,
           ...existing.imports
         },
         ...(existing.scopes && { scopes: existing.scopes })
@@ -261,7 +289,7 @@ function processImportMapHTML(html, root) {
   }
   
   // No import map found - inject one
-  const newMap = `<script type="importmap">\n${JSON.stringify({imports: daebugMappings}, null, 2)}\n</script>`;
+  const newMap = `<script type="importmap">\n${JSON.stringify({imports: DAEBUG_IMPORT_MAPS}, null, 2)}\n</script>`;
   return injectImportMap(html, newMap);
 }
 
@@ -318,16 +346,10 @@ function injectClientScript(html) {
  * @param {any} existing
  * @returns {any}
  */
-function mergeImportMaps(existing) {
-  const daebugMappings = {
-    'node:test': '/daebug/test-runner.js',
-    'node:assert': '/daebug/assert.js',
-    'node:assert/strict': '/daebug/assert.js'
-  };
-  
+function mergeImportMaps(existing) {  
   return {
     imports: {
-      ...daebugMappings,
+      ...DAEBUG_IMPORT_MAPS,
       ...existing.imports
     },
     ...(existing.scopes && { scopes: existing.scopes })
